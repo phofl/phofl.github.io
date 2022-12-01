@@ -1,6 +1,6 @@
 theme: jekyll-theme-minimal
 title: Patrick Hoefler
-description: Blogging about.md pandas development and other stuff
+description: Blogging about pandas development and other stuff
 show_downloads: False
 navigation:
   - title: Home
@@ -8,4 +8,4 @@ navigation:
   - title: Blog
     url: blog
   - title: About
-    url: about
+    url: about/about
