@@ -48,4 +48,8 @@ AUTHOR_BLOG = 'https://phofl.github.io'
 
 
 # Social widget
-SOCIAL = (('github', 'https://github.com/phofl/'),)
+SOCIAL = (
+    ('github', 'https://github.com/phofl/'),
+    ('linkedin', 'https://www.linkedin.com/in/patrick-hoefler/'),
+    ('mail', 'mailto:patrick_hoefler@gmx.net'),
+)

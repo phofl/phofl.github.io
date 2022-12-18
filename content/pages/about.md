@@ -4,7 +4,7 @@ date: 2022-12-16
 slug: about
 ---
 
-Hi, I am Patrick Hoefler. I am a core contributor of pandas, and I am currently
+Hi, I am Patrick Hoefler. I am a core contributor to pandas, and I am currently
 working at [d-fine](https://www.d-fine.com/en/). I mostly develop individual software components
 for clients in the insurance industry using the PyData software stack. 
 
