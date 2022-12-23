@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom"><title>Patrick Hoefler - posts</title><link href="https://phofl.github.io/" rel="alternate"></link><link href="https://phofl.github.io/feeds/posts.atom.xml" rel="self"></link><id>https://phofl.github.io/</id><updated>2022-12-23T00:00:00+01:00</updated><entry><title>A solution for inconsistencies in indexing operations in pandas</title><link href="https://phofl.github.io/cow-introduction.html" rel="alternate"></link><published>2022-12-23T00:00:00+01:00</published><updated>2022-12-23T00:00:00+01:00</updated><author><name>Patrick Hoefler</name></author><id>tag:phofl.github.io,2022-12-23:/cow-introduction.html</id><summary type="html">&lt;p&gt;&lt;em&gt;Get rid of annoying SettingWithCopyWarning messages&lt;/em&gt;&lt;/p&gt;
+&lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
+&lt;p&gt;Indexing operations in pandas are quite flexible and thus, have many cases that can behave quite 
+different and therefore produce unexpected results. Additionally, it is hard to predict when a 
+&lt;code&gt;SettingWithCopyWarningis&lt;/code&gt; raised and what this means exactly. I’ll show a couple of …&lt;/p&gt;</summary><content type="html">&lt;p&gt;&lt;em&gt;Get rid of annoying SettingWithCopyWarning messages&lt;/em&gt;&lt;/p&gt;
+&lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
+&lt;p&gt;Indexing operations in pandas are quite flexible and thus, have many cases that can behave quite 
+different and therefore produce unexpected results. Additionally, it is hard to predict when a 
+&lt;code&gt;SettingWithCopyWarningis&lt;/code&gt; raised and what this means exactly. I’ll show a couple of different 
+scenarios and how each operation might impact your code. Afterwards, we will look at a new feature 
+called &lt;code&gt;Copy on Write&lt;/code&gt; that helps you to get rid of the inconsistencies and of 
+&lt;code&gt;SettingWithCopyWarnings&lt;/code&gt;. We will also investigate how this might impact performance and other 
+methods in general.&lt;/p&gt;
+&lt;h2 id="indexing-operations"&gt;Indexing operations&lt;/h2&gt;
+&lt;p&gt;Let’s look at how indexing operations currently work in pandas. If you are already familiar with 
+indexing operations, you can jump to the next section. But be aware, there are many cases with 
+different forms of behavior. The exact behavor is hard to predict.&lt;/p&gt;
+&lt;p&gt;An operation in pandas produces a copy, when the underlying data of the parent DataFrame and the 
+new DataFrame are not shared. A view is an object that does share data with the parent object. A 
+modification to the view can potentially impact the parent object.&lt;/p&gt;
+&lt;p&gt;As of right now, some indexing operations return copies while others return views. The exact 
+behavior is hard to predict, even for experienced users. This has been a big annoyance for me in 
+the past.&lt;/p&gt;
+&lt;p&gt;Let’s start with a DataFrame with two columns:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df = pd.DataFrame({&amp;quot;user_id&amp;quot;: [1, 2, 3], &amp;quot;score&amp;quot;: [10, 15, 20]})
+
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;A &lt;strong&gt;getitem&lt;/strong&gt; operation on a DataFrame or Series returns a subset of the initial object. The subset 
+might consist of one or a set of columns, one or a set of rows or a mixture of both. A &lt;strong&gt;setitem&lt;/strong&gt; 
+operation on a DataFrame or Series updates a subset of the initial object. The subset itself is 
+defined by the arguments to the calls.&lt;/p&gt;
+&lt;p&gt;A regular &lt;strong&gt;getitem&lt;/strong&gt; operation on a DataFrame provides a view in most cases:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;view = df[&amp;quot;user_id&amp;quot;]
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;As a consequence, the new object &lt;code&gt;view&lt;/code&gt; still references the parent object &lt;code&gt;df&lt;/code&gt; and its data. Hence, 
+writing into the view will also modify the parent object.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;view.iloc[0] = 10
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;This &lt;strong&gt;setitem&lt;/strong&gt; operation will consequently update not only our &lt;code&gt;view&lt;/code&gt; but also &lt;code&gt;df&lt;/code&gt;. This 
+happens because the underlying data are shared between both objects.&lt;/p&gt;
+&lt;p&gt;This is only true, if the column &lt;code&gt;user_id&lt;/code&gt; occurs only once in &lt;code&gt;df&lt;/code&gt;. As soon as &lt;code&gt;user_id&lt;/code&gt; is 
+duplicated the &lt;strong&gt;getitem&lt;/strong&gt; operation returns a DataFrame. This means the returned object is a copy 
+instead of a view:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df = pd.DataFrame(
+    [[1, 10, 2], [3, 15, 4]], 
+    columns=[&amp;quot;user_id&amp;quot;, &amp;quot;score&amp;quot;, &amp;quot;user_id&amp;quot;],
+)
+not_a_view = df[&amp;quot;user_id&amp;quot;]
+not_a_view.iloc[0] = 10
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;The &lt;strong&gt;setitem&lt;/strong&gt; operation does not update &lt;code&gt;df&lt;/code&gt;. We also get our first &lt;code&gt;SettingWithCopyWarning&lt;/code&gt;, even 
+though this is a perfectly acceptable operation. The &lt;strong&gt;getitem&lt;/strong&gt; operation itself has many more cases, 
+like list-like keys, e.g. &lt;code&gt;df[["user_id"]]&lt;/code&gt;, MultiIndex-columns and many more. I will go into more 
+detail in follow-up posts to look at different forms of performing indexing operations and their 
+behavior.&lt;/p&gt;
+&lt;p&gt;Let’s have a look at another case that is a bit more complicated than a single &lt;strong&gt;getitem&lt;/strong&gt; operation: 
+chained indexing. Chained indexing means filtering with a boolean mask followed by a &lt;strong&gt;getitem&lt;/strong&gt; 
+operation or the other way around. This is done in one step. We do not create a new variable to 
+store the result of the first operation.&lt;/p&gt;
+&lt;p&gt;We again start with a regular DataFrame:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df = pd.DataFrame({&amp;quot;user_id&amp;quot;: [1, 2, 3], &amp;quot;score&amp;quot;: [10, 15, 20]})
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;We can update all &lt;code&gt;user_ids&lt;/code&gt; that have a score greater than 15 through:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df[&amp;quot;user_id&amp;quot;][df[&amp;quot;score&amp;quot;] &amp;gt; 15] = 5
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;We take the column &lt;code&gt;user_id&lt;/code&gt; and apply the filter afterwards. This works perfectly fine, because 
+the column selection creates a view and the &lt;strong&gt;setitem&lt;/strong&gt; operation updates said view. We can switch 
+both operations as well:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df[df[&amp;quot;score&amp;quot;] &amp;gt; 15][&amp;quot;user_id&amp;quot;] = 5
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;This execution order produces another &lt;code&gt;SettingWithCopyWarning&lt;/code&gt;. In contrast to our earlier example, 
+nothing happens. The DataFrame &lt;code&gt;df&lt;/code&gt; is not modified. This is a silent no-operation. The boolean 
+mask always creates a copy of the initial DataFrame. Hence, the initial &lt;strong&gt;getitem&lt;/strong&gt; operation returns 
+a copy. The return value is not assigned to any variable and is only a temporary result. The 
+setitem operation updates this temporary copy. As a result, the modification is lost. The fact 
+that masks return copies while column selections return views is an implementation detail. 
+Ideally, such implementation details should not be visible.&lt;/p&gt;
+&lt;p&gt;Another approach of doing this is as follows:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;new_df = df[df[&amp;quot;score&amp;quot;] &amp;gt; 15]
+new_df[&amp;quot;user_id&amp;quot;] = 10
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;This operation updates &lt;code&gt;new_df&lt;/code&gt; as intended but shows a &lt;code&gt;SettingWithCopyWarning&lt;/code&gt; anyway, because we 
+can not update &lt;code&gt;df&lt;/code&gt;. Most of us probably never want to update the initial object (e.g. &lt;code&gt;df&lt;/code&gt;) in this 
+scenario, but we get the warning anyway. In my experience this leads to unnecessary copy statements 
+scattered over the code base.&lt;/p&gt;
+&lt;p&gt;This is just a small sample of current inconsistencies and annoyances in indexing operations.&lt;/p&gt;
+&lt;p&gt;Since the actual behavior is hard to predict, this forces many defensive copies in other methods. 
+For example,&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;dropping of columns&lt;/li&gt;
+&lt;li&gt;setting a new index&lt;/li&gt;
+&lt;li&gt;resetting the index&lt;/li&gt;
+&lt;li&gt;…&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;All copy the underlying data. These copies are not necessary from an implementation perspective. 
+The methods could return views pretty easily, but returning views would lead to unpredictable 
+behavior later on. Theoretically, one &lt;strong&gt;setitem&lt;/strong&gt; operation could propagate through the whole 
+call-chain, updating many DataFrames at once.&lt;/p&gt;
+&lt;h2 id="copy-on-write"&gt;Copy on Write&lt;/h2&gt;
+&lt;p&gt;Let’s look at how a new feature called “Copy on Write” (CoW) helps us to get rid of these 
+inconsistencies in our code base. CoW means that &lt;strong&gt;any DataFrame or Series derived from another in&lt;/strong&gt; 
+&lt;strong&gt;any way always behaves as a copy&lt;/strong&gt;. As a consequence, we can only change the values of an object 
+through modifying the object itself. CoW disallows updating a DataFrame or a Series that shares 
+data with another DataFrame or Series object inplace. With this information, we can again look at 
+our initial example:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df = pd.DataFrame({&amp;quot;user_id&amp;quot;: [1, 2, 3], &amp;quot;score&amp;quot;: [10, 15, 20]})
+view = df[&amp;quot;user_id&amp;quot;]
+view.iloc[0] = 10
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;The &lt;strong&gt;getitem&lt;/strong&gt; operation provides a view onto &lt;code&gt;df&lt;/code&gt; and it’s data. The &lt;strong&gt;setitem&lt;/strong&gt; operation triggers a copy 
+of the underlying data before &lt;code&gt;10&lt;/code&gt; is written into the first row. Hence, the operation won't modify 
+&lt;code&gt;df&lt;/code&gt;. An advantage of this behavior is, that we don’t have to worry about &lt;code&gt;user_id&lt;/code&gt; being potentially
+duplicated or using &lt;code&gt;df[["user_id"]]&lt;/code&gt; instead of &lt;code&gt;df["user_id"]&lt;/code&gt;. All these cases behave exactly the 
+same and no annoying warning is shown.&lt;/p&gt;
+&lt;p&gt;Triggering a copy before updating the values of the object has performance implications. This 
+will most certainly cause a small slowdown for some operations. On the other side, a lot of other 
+operations can &lt;strong&gt;avoid&lt;/strong&gt; defensive copies and thus improve performance tremendously. The following 
+operations can all return views with CoW:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;dropping columns&lt;/li&gt;
+&lt;li&gt;setting a new index&lt;/li&gt;
+&lt;li&gt;resetting the index&lt;/li&gt;
+&lt;li&gt;and many more.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Let’s consider the following DataFrame:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;na = np.array(np.random.rand(1_000_000, 100))
+cols = [f&amp;quot;col_{i}&amp;quot; for i in range(100)]
+df = pd.DataFrame(na, columns=cols)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Using &lt;code&gt;add_prefix&lt;/code&gt; adds the given string (e.g. &lt;code&gt;test&lt;/code&gt;) to the beginning of every column name:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df.add_prefix(&amp;quot;test&amp;quot;)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Without CoW, this will copy the data internally. This is not necessary when looking solely at the 
+operation. But since returning a view can have side effects, the method returns a copy. As a 
+consequence, the operation itself is pretty slow:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;482 ms ± 3.43 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;This takes quite long. We practically only modify 100 string literals without touching the data at 
+all. Returning a view provides a significant speedup in this scenario:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;46.4 µs ± 1.04 µs per loop (mean ± std. dev. of 7 runs, 10,000 loops each)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;The same operation runs multiple orders of magnitude faster. More importantly, the running time of 
+&lt;code&gt;add_prefix&lt;/code&gt; is &lt;strong&gt;constant&lt;/strong&gt; when using CoW and does not depend on the size of your DataFrame. This 
+operation was run on the main branch of pandas.&lt;/p&gt;
+&lt;p&gt;The copy is only necessary, if two different objects share the same underlying data. In the 
+example above, &lt;code&gt;view&lt;/code&gt; and &lt;code&gt;df&lt;/code&gt; both reference the same data. If the data is exclusive to one &lt;code&gt;DataFrame&lt;/code&gt; 
+object, no copy is needed, we can continue to modify the data inplace:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df = pd.DataFrame({&amp;quot;user_id&amp;quot;: [1, 2, 3], &amp;quot;score&amp;quot;: [10, 15, 20]})
+df.iloc[0] = 10
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;In this case the &lt;strong&gt;setitem&lt;/strong&gt; operation will continue to operate inplace without triggering a copy.&lt;/p&gt;
+&lt;p&gt;As a consequence, all the different scenarios that we have seen initially have exactly the same 
+behavior now. We don’t have to worry about subtle inconsistencies anymore.&lt;/p&gt;
+&lt;p&gt;Another case that currently has strange and hard to predict behavior is chained indexing. Chained 
+indexing under CoW will &lt;strong&gt;never&lt;/strong&gt; work. This is a direct consequence of the CoW mechanism. The initial 
+selection of columns might return a view, but a copy is triggered when we perform the subsequent 
+setitem operation. Fortunately, we can easily modify our code to avoid chained indexing:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df[&amp;quot;user_id&amp;quot;][df[&amp;quot;score&amp;quot;] &amp;gt; 15] = 10
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;We can use &lt;code&gt;loc&lt;/code&gt; to do both operations at once:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df.loc[df[&amp;quot;score&amp;quot;] &amp;gt; 15, &amp;quot;user_id&amp;quot;] = 10
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Summarizing, every object that we create behaves like a copy of the parent object. We can not 
+accidentally update an object other than the one we are currently working with.&lt;/p&gt;
+&lt;h2 id="how-to-try-it-out"&gt;How to try it out&lt;/h2&gt;
+&lt;p&gt;You can try the CoW feature since pandas 1.5.0. Development is still ongoing, but the general 
+mechanism works already.&lt;/p&gt;
+&lt;p&gt;You can either set the CoW flag globally through on of the following statements:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;pd.set_option(&amp;quot;mode.copy_on_write&amp;quot;, True)
+pd.options.mode.copy_on_write = True
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Alternatively, you can enable CoW locally with:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;with pd.option_context(&amp;quot;mode.copy_on_write&amp;quot;, True):
+    ...
+&lt;/code&gt;&lt;/pre&gt;
+&lt;h2 id="conclusion"&gt;Conclusion&lt;/h2&gt;
+&lt;p&gt;We have seen that indexing operations in pandas have many edge cases and subtle differences in 
+behavior that are hard to predict. CoW is a new feature aimed at addressing those differences. 
+It can potentially impact performance positively or negatively based on what we are trying to do 
+with our data. The full proposal for CoW can be found 
+&lt;a href="https://docs.google.com/document/d/1ZCQ9mx3LBMy-nhwRl33_jgcvWo9IWdEfxDNQ2thyTb0/edit#heading=h.iexejdstiz8u"&gt;here&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Thank you for reading. Feel free to reach out to share your thoughts and feedback 
+on indexing and Copy on Write. I will write follow.up posts focused on this topic and pandas in 
+general.&lt;/p&gt;</content><category term="posts"></category><category term="pandas"></category></entry></feed>
