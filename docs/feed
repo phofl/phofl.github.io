@@ -1,2 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<rss version="2.0"><channel><title>Patrick Hoefler</title><link>https://phofl.github.io/</link><description></description><lastBuildDate>Sun, 18 Dec 2022 21:11:19 -0000</lastBuildDate></channel></rss>
+<rss version="2.0"><channel><title>Patrick Hoefler</title><link>https://phofl.github.io/</link><description></description><lastBuildDate>Fri, 23 Dec 2022 00:00:00 +0100</lastBuildDate><item><title>A solution for inconsistencies in indexing operations in pandas</title><link>https://phofl.github.io/cow-introduction.html</link><description>&lt;p&gt;&lt;em&gt;Get rid of annoying SettingWithCopyWarning messages&lt;/em&gt;&lt;/p&gt;
+&lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
+&lt;p&gt;Indexing operations in pandas are quite flexible and thus, have many cases that can behave quite 
+different and therefore produce unexpected results. Additionally, it is hard to predict when a 
+&lt;code&gt;SettingWithCopyWarningis&lt;/code&gt; raised and what this means exactly. I’ll show a couple of …&lt;/p&gt;</description><dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Patrick Hoefler</dc:creator><pubDate>Fri, 23 Dec 2022 00:00:00 +0100</pubDate><guid isPermaLink="false">tag:phofl.github.io,2022-12-23:/cow-introduction.html</guid><category>posts</category><category>pandas</category></item></channel></rss>

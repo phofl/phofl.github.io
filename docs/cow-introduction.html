@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <!-- ## for client-side less
+  <link rel="stylesheet/less" type="text/css" href="https://phofl.github.io/theme/css/style.less">
+  <script src="//cdnjs.cloudflare.com/ajax/libs/less.js/1.7.3/less.min.js" type="text/javascript"></script>
+  -->
+  <link rel="icon" type="image/vnd.microsoft.icon" href="https://phofl.github.io/">
+  <link rel="stylesheet" type="text/css" href="https://phofl.github.io/theme/css/style.min.css">
+  <link rel="stylesheet" type="text/css" href="https://phofl.github.io/theme/css/pygments.css">
+  <link rel="stylesheet" type="text/css" href="//fonts.googleapis.com/css?family=Roboto+Mono">
+  <link rel="stylesheet" type="text/css" href="https://phofl.github.io/theme/css/font-awesome.min.css">
+  <link rel="stylesheet" type="text/css" href="https://phofl.github.io/theme/css/hatena-bookmark-icon.css">
+  <link rel="stylesheet" type="text/css" href="/docs/extra/custom.css">
+
+
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="author" content="Patrick Hoefler">
+  <meta name="description" content="Posts and writings by Patrick Hoefler">
+
+  <link href="https://phofl.github.io/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="Patrick Hoefler Atom" />
+
+<meta name="keywords" content="pandas">
+
+  <title>
+    Patrick Hoefler
+&ndash; A solution for inconsistencies in indexing operations in pandas  </title>
+
+</head>
+
+<body>
+  <main>
+    <header>
+      <div class="site-name">
+        <a href="https://phofl.github.io">Patrick Hoefler</a>
+      </div>
+      <p>
+        <a href="https://phofl.github.io/archives.html"><i class="fa fa-archive"></i> Archive</a>
+      </p>
+    </header>
+
+<article>
+  <div class="article__title">
+    <h1><a href="https://phofl.github.io/cow-introduction.html">A solution for inconsistencies in indexing operations in pandas</a></h1>
+  </div>
+  <div class="article__meta">
+    <p class="article__meta__post-date">Posted on: Fri 23 December 2022</p>
+ Tags:
+      <a href="https://phofl.github.io/tag/pandas.html">#pandas</a>    </p>
+  </div>
+  <div class="article__text">
+    <p><em>Get rid of annoying SettingWithCopyWarning messages</em></p>
+<h2 id="introduction">Introduction</h2>
+<p>Indexing operations in pandas are quite flexible and thus, have many cases that can behave quite 
+different and therefore produce unexpected results. Additionally, it is hard to predict when a 
+<code>SettingWithCopyWarningis</code> raised and what this means exactly. I’ll show a couple of different 
+scenarios and how each operation might impact your code. Afterwards, we will look at a new feature 
+called <code>Copy on Write</code> that helps you to get rid of the inconsistencies and of 
+<code>SettingWithCopyWarnings</code>. We will also investigate how this might impact performance and other 
+methods in general.</p>
+<h2 id="indexing-operations">Indexing operations</h2>
+<p>Let’s look at how indexing operations currently work in pandas. If you are already familiar with 
+indexing operations, you can jump to the next section. But be aware, there are many cases with 
+different forms of behavior. The exact behavor is hard to predict.</p>
+<p>An operation in pandas produces a copy, when the underlying data of the parent DataFrame and the 
+new DataFrame are not shared. A view is an object that does share data with the parent object. A 
+modification to the view can potentially impact the parent object.</p>
+<p>As of right now, some indexing operations return copies while others return views. The exact 
+behavior is hard to predict, even for experienced users. This has been a big annoyance for me in 
+the past.</p>
+<p>Let’s start with a DataFrame with two columns:</p>
+<pre><code class="language-python">df = pd.DataFrame({&quot;user_id&quot;: [1, 2, 3], &quot;score&quot;: [10, 15, 20]})
+
+</code></pre>
+<p>A <strong>getitem</strong> operation on a DataFrame or Series returns a subset of the initial object. The subset 
+might consist of one or a set of columns, one or a set of rows or a mixture of both. A <strong>setitem</strong> 
+operation on a DataFrame or Series updates a subset of the initial object. The subset itself is 
+defined by the arguments to the calls.</p>
+<p>A regular <strong>getitem</strong> operation on a DataFrame provides a view in most cases:</p>
+<pre><code class="language-python">view = df[&quot;user_id&quot;]
+</code></pre>
+<p>As a consequence, the new object <code>view</code> still references the parent object <code>df</code> and its data. Hence, 
+writing into the view will also modify the parent object.</p>
+<pre><code class="language-python">view.iloc[0] = 10
+</code></pre>
+<p>This <strong>setitem</strong> operation will consequently update not only our <code>view</code> but also <code>df</code>. This 
+happens because the underlying data are shared between both objects.</p>
+<p>This is only true, if the column <code>user_id</code> occurs only once in <code>df</code>. As soon as <code>user_id</code> is 
+duplicated the <strong>getitem</strong> operation returns a DataFrame. This means the returned object is a copy 
+instead of a view:</p>
+<pre><code class="language-python">df = pd.DataFrame(
+    [[1, 10, 2], [3, 15, 4]], 
+    columns=[&quot;user_id&quot;, &quot;score&quot;, &quot;user_id&quot;],
+)
+not_a_view = df[&quot;user_id&quot;]
+not_a_view.iloc[0] = 10
+</code></pre>
+<p>The <strong>setitem</strong> operation does not update <code>df</code>. We also get our first <code>SettingWithCopyWarning</code>, even 
+though this is a perfectly acceptable operation. The <strong>getitem</strong> operation itself has many more cases, 
+like list-like keys, e.g. <code>df[["user_id"]]</code>, MultiIndex-columns and many more. I will go into more 
+detail in follow-up posts to look at different forms of performing indexing operations and their 
+behavior.</p>
+<p>Let’s have a look at another case that is a bit more complicated than a single <strong>getitem</strong> operation: 
+chained indexing. Chained indexing means filtering with a boolean mask followed by a <strong>getitem</strong> 
+operation or the other way around. This is done in one step. We do not create a new variable to 
+store the result of the first operation.</p>
+<p>We again start with a regular DataFrame:</p>
+<pre><code class="language-python">df = pd.DataFrame({&quot;user_id&quot;: [1, 2, 3], &quot;score&quot;: [10, 15, 20]})
+</code></pre>
+<p>We can update all <code>user_ids</code> that have a score greater than 15 through:</p>
+<pre><code class="language-python">df[&quot;user_id&quot;][df[&quot;score&quot;] &gt; 15] = 5
+</code></pre>
+<p>We take the column <code>user_id</code> and apply the filter afterwards. This works perfectly fine, because 
+the column selection creates a view and the <strong>setitem</strong> operation updates said view. We can switch 
+both operations as well:</p>
+<pre><code class="language-python">df[df[&quot;score&quot;] &gt; 15][&quot;user_id&quot;] = 5
+</code></pre>
+<p>This execution order produces another <code>SettingWithCopyWarning</code>. In contrast to our earlier example, 
+nothing happens. The DataFrame <code>df</code> is not modified. This is a silent no-operation. The boolean 
+mask always creates a copy of the initial DataFrame. Hence, the initial <strong>getitem</strong> operation returns 
+a copy. The return value is not assigned to any variable and is only a temporary result. The 
+setitem operation updates this temporary copy. As a result, the modification is lost. The fact 
+that masks return copies while column selections return views is an implementation detail. 
+Ideally, such implementation details should not be visible.</p>
+<p>Another approach of doing this is as follows:</p>
+<pre><code class="language-python">new_df = df[df[&quot;score&quot;] &gt; 15]
+new_df[&quot;user_id&quot;] = 10
+</code></pre>
+<p>This operation updates <code>new_df</code> as intended but shows a <code>SettingWithCopyWarning</code> anyway, because we 
+can not update <code>df</code>. Most of us probably never want to update the initial object (e.g. <code>df</code>) in this 
+scenario, but we get the warning anyway. In my experience this leads to unnecessary copy statements 
+scattered over the code base.</p>
+<p>This is just a small sample of current inconsistencies and annoyances in indexing operations.</p>
+<p>Since the actual behavior is hard to predict, this forces many defensive copies in other methods. 
+For example,</p>
+<ul>
+<li>dropping of columns</li>
+<li>setting a new index</li>
+<li>resetting the index</li>
+<li>…</li>
+</ul>
+<p>All copy the underlying data. These copies are not necessary from an implementation perspective. 
+The methods could return views pretty easily, but returning views would lead to unpredictable 
+behavior later on. Theoretically, one <strong>setitem</strong> operation could propagate through the whole 
+call-chain, updating many DataFrames at once.</p>
+<h2 id="copy-on-write">Copy on Write</h2>
+<p>Let’s look at how a new feature called “Copy on Write” (CoW) helps us to get rid of these 
+inconsistencies in our code base. CoW means that <strong>any DataFrame or Series derived from another in</strong> 
+<strong>any way always behaves as a copy</strong>. As a consequence, we can only change the values of an object 
+through modifying the object itself. CoW disallows updating a DataFrame or a Series that shares 
+data with another DataFrame or Series object inplace. With this information, we can again look at 
+our initial example:</p>
+<pre><code class="language-python">df = pd.DataFrame({&quot;user_id&quot;: [1, 2, 3], &quot;score&quot;: [10, 15, 20]})
+view = df[&quot;user_id&quot;]
+view.iloc[0] = 10
+</code></pre>
+<p>The <strong>getitem</strong> operation provides a view onto <code>df</code> and it’s data. The <strong>setitem</strong> operation triggers a copy 
+of the underlying data before <code>10</code> is written into the first row. Hence, the operation won't modify 
+<code>df</code>. An advantage of this behavior is, that we don’t have to worry about <code>user_id</code> being potentially
+duplicated or using <code>df[["user_id"]]</code> instead of <code>df["user_id"]</code>. All these cases behave exactly the 
+same and no annoying warning is shown.</p>
+<p>Triggering a copy before updating the values of the object has performance implications. This 
+will most certainly cause a small slowdown for some operations. On the other side, a lot of other 
+operations can <strong>avoid</strong> defensive copies and thus improve performance tremendously. The following 
+operations can all return views with CoW:</p>
+<ul>
+<li>dropping columns</li>
+<li>setting a new index</li>
+<li>resetting the index</li>
+<li>and many more.</li>
+</ul>
+<p>Let’s consider the following DataFrame:</p>
+<pre><code class="language-python">na = np.array(np.random.rand(1_000_000, 100))
+cols = [f&quot;col_{i}&quot; for i in range(100)]
+df = pd.DataFrame(na, columns=cols)
+</code></pre>
+<p>Using <code>add_prefix</code> adds the given string (e.g. <code>test</code>) to the beginning of every column name:</p>
+<pre><code class="language-python">df.add_prefix(&quot;test&quot;)
+</code></pre>
+<p>Without CoW, this will copy the data internally. This is not necessary when looking solely at the 
+operation. But since returning a view can have side effects, the method returns a copy. As a 
+consequence, the operation itself is pretty slow:</p>
+<pre><code class="language-python">482 ms ± 3.43 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)
+</code></pre>
+<p>This takes quite long. We practically only modify 100 string literals without touching the data at 
+all. Returning a view provides a significant speedup in this scenario:</p>
+<pre><code class="language-python">46.4 µs ± 1.04 µs per loop (mean ± std. dev. of 7 runs, 10,000 loops each)
+</code></pre>
+<p>The same operation runs multiple orders of magnitude faster. More importantly, the running time of 
+<code>add_prefix</code> is <strong>constant</strong> when using CoW and does not depend on the size of your DataFrame. This 
+operation was run on the main branch of pandas.</p>
+<p>The copy is only necessary, if two different objects share the same underlying data. In the 
+example above, <code>view</code> and <code>df</code> both reference the same data. If the data is exclusive to one <code>DataFrame</code> 
+object, no copy is needed, we can continue to modify the data inplace:</p>
+<pre><code class="language-python">df = pd.DataFrame({&quot;user_id&quot;: [1, 2, 3], &quot;score&quot;: [10, 15, 20]})
+df.iloc[0] = 10
+</code></pre>
+<p>In this case the <strong>setitem</strong> operation will continue to operate inplace without triggering a copy.</p>
+<p>As a consequence, all the different scenarios that we have seen initially have exactly the same 
+behavior now. We don’t have to worry about subtle inconsistencies anymore.</p>
+<p>Another case that currently has strange and hard to predict behavior is chained indexing. Chained 
+indexing under CoW will <strong>never</strong> work. This is a direct consequence of the CoW mechanism. The initial 
+selection of columns might return a view, but a copy is triggered when we perform the subsequent 
+setitem operation. Fortunately, we can easily modify our code to avoid chained indexing:</p>
+<pre><code class="language-python">df[&quot;user_id&quot;][df[&quot;score&quot;] &gt; 15] = 10
+</code></pre>
+<p>We can use <code>loc</code> to do both operations at once:</p>
+<pre><code class="language-python">df.loc[df[&quot;score&quot;] &gt; 15, &quot;user_id&quot;] = 10
+</code></pre>
+<p>Summarizing, every object that we create behaves like a copy of the parent object. We can not 
+accidentally update an object other than the one we are currently working with.</p>
+<h2 id="how-to-try-it-out">How to try it out</h2>
+<p>You can try the CoW feature since pandas 1.5.0. Development is still ongoing, but the general 
+mechanism works already.</p>
+<p>You can either set the CoW flag globally through on of the following statements:</p>
+<pre><code class="language-python">pd.set_option(&quot;mode.copy_on_write&quot;, True)
+pd.options.mode.copy_on_write = True
+</code></pre>
+<p>Alternatively, you can enable CoW locally with:</p>
+<pre><code class="language-python">with pd.option_context(&quot;mode.copy_on_write&quot;, True):
+    ...
+</code></pre>
+<h2 id="conclusion">Conclusion</h2>
+<p>We have seen that indexing operations in pandas have many edge cases and subtle differences in 
+behavior that are hard to predict. CoW is a new feature aimed at addressing those differences. 
+It can potentially impact performance positively or negatively based on what we are trying to do 
+with our data. The full proposal for CoW can be found 
+<a href="https://docs.google.com/document/d/1ZCQ9mx3LBMy-nhwRl33_jgcvWo9IWdEfxDNQ2thyTb0/edit#heading=h.iexejdstiz8u">here</a>.</p>
+<p>Thank you for reading. Feel free to reach out to share your thoughts and feedback 
+on indexing and Copy on Write. I will write follow.up posts focused on this topic and pandas in 
+general.</p>
+  </div>
+
+</article>
+
+
+  </main>
+    <footer>
+      <section class="author">
+        <div class="author__name">
+          <a href="https://phofl.github.io/pages/about.html">Patrick Hoefler</a>
+          <p></p>
+        </div>
+        <div class="author__link">
+          <ul>
+            <li><a href="https://phofl.github.io/pages/about.html" title="About"><i class="fa fa-link"></i></a></li>
+            <li>
+              <a href="https://github.com/phofl/" target="_blank" title="github">
+                <i class="fa fa-github-square"></i>
+              </a>
+            </li>
+            <li>
+              <a href="https://www.linkedin.com/in/patrick-hoefler/" target="_blank" title="linkedin">
+                <i class="fa fa-linkedin-square"></i>
+              </a>
+            </li>
+            <li>
+              <a href="mailto:patrick_hoefler@gmx.net" target="_blank" title="mail">
+                <i class="fa fa-envelope"></i>
+              </a>
+            </li>
+            <li>
+              <a href="https://phofl.github.io/feeds/all.atom.xml" target="_blank" title="Feed">
+                <i class="fa fa-rss"></i>
+              </a>
+            </li>
+          </ul>
+        </div>
+      </section>
+      <div class="ending-message">
+        <p>&copy; Patrick Hoefler. Powered by <a href="http://getpelican.com" target="_blank">Pelican</a>, Theme is using <a href="https://github.com/laughk/pelican-hss" target="_blank">HSS</a>. </p>
+      </div>
+    </footer>
+</body>
+</html>
