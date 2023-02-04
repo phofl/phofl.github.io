@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<rss version="2.0"><channel><title>Patrick Hoefler</title><link>https://phofl.github.io/</link><description></description><lastBuildDate>Fri, 23 Dec 2022 00:00:00 +0100</lastBuildDate><item><title>A solution for inconsistencies in indexing operations in pandas</title><link>https://phofl.github.io/cow-introduction.html</link><description>&lt;p&gt;&lt;em&gt;Get rid of annoying SettingWithCopyWarning messages&lt;/em&gt;&lt;/p&gt;
+<rss version="2.0"><channel><title>Patrick Hoefler</title><link>https://phofl.github.io/</link><description></description><lastBuildDate>Fri, 10 Feb 2023 00:00:00 +0100</lastBuildDate><item><title>A guide to efficient data selection in pandas</title><link>https://phofl.github.io/indexing-copy-view.html</link><description>&lt;p&gt;&lt;em&gt;Improve performance when selecting data from a pandas object&lt;/em&gt;&lt;/p&gt;
+&lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
+&lt;p&gt;There exist different ways of selecting a subset of data from a pandas object. Depending
+on the specific operation, the result will either be a view pointing to the original
+data or a copy of the original data. This ties …&lt;/p&gt;</description><dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Patrick Hoefler</dc:creator><pubDate>Fri, 10 Feb 2023 00:00:00 +0100</pubDate><guid isPermaLink="false">tag:phofl.github.io,2023-02-10:/indexing-copy-view.html</guid><category>posts</category><category>pandas</category></item><item><title>A solution for inconsistencies in indexing operations in pandas</title><link>https://phofl.github.io/cow-introduction.html</link><description>&lt;p&gt;&lt;em&gt;Get rid of annoying SettingWithCopyWarning messages&lt;/em&gt;&lt;/p&gt;
 &lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
 &lt;p&gt;Indexing operations in pandas are quite flexible and thus, have many cases that can behave quite 
 different and therefore produce unexpected results. Additionally, it is hard to predict when a 

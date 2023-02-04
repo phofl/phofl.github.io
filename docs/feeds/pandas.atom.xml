@@ -1,5 +1,160 @@
 <?xml version="1.0" encoding="utf-8"?>
-<feed xmlns="http://www.w3.org/2005/Atom"><title>Patrick Hoefler - pandas</title><link href="https://phofl.github.io/" rel="alternate"></link><link href="https://phofl.github.io/feeds/pandas.atom.xml" rel="self"></link><id>https://phofl.github.io/</id><updated>2022-12-23T00:00:00+01:00</updated><entry><title>A solution for inconsistencies in indexing operations in pandas</title><link href="https://phofl.github.io/cow-introduction.html" rel="alternate"></link><published>2022-12-23T00:00:00+01:00</published><updated>2022-12-23T00:00:00+01:00</updated><author><name>Patrick Hoefler</name></author><id>tag:phofl.github.io,2022-12-23:/cow-introduction.html</id><summary type="html">&lt;p&gt;&lt;em&gt;Get rid of annoying SettingWithCopyWarning messages&lt;/em&gt;&lt;/p&gt;
+<feed xmlns="http://www.w3.org/2005/Atom"><title>Patrick Hoefler - pandas</title><link href="https://phofl.github.io/" rel="alternate"></link><link href="https://phofl.github.io/feeds/pandas.atom.xml" rel="self"></link><id>https://phofl.github.io/</id><updated>2023-02-10T00:00:00+01:00</updated><entry><title>A guide to efficient data selection in pandas</title><link href="https://phofl.github.io/indexing-copy-view.html" rel="alternate"></link><published>2023-02-10T00:00:00+01:00</published><updated>2023-02-10T00:00:00+01:00</updated><author><name>Patrick Hoefler</name></author><id>tag:phofl.github.io,2023-02-10:/indexing-copy-view.html</id><summary type="html">&lt;p&gt;&lt;em&gt;Improve performance when selecting data from a pandas object&lt;/em&gt;&lt;/p&gt;
+&lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
+&lt;p&gt;There exist different ways of selecting a subset of data from a pandas object. Depending
+on the specific operation, the result will either be a view pointing to the original
+data or a copy of the original data. This ties …&lt;/p&gt;</summary><content type="html">&lt;p&gt;&lt;em&gt;Improve performance when selecting data from a pandas object&lt;/em&gt;&lt;/p&gt;
+&lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
+&lt;p&gt;There exist different ways of selecting a subset of data from a pandas object. Depending
+on the specific operation, the result will either be a view pointing to the original
+data or a copy of the original data. This ties directly to the efficiency of the operation. 
+The copy and view rules are partially derived from the 
+&lt;a href="https://numpy.org/doc/stable/user/basics.indexing.html"&gt;NumPy advanced indexing rules&lt;/a&gt;.
+We will look at different operations and how to improve performance and efficiency as much as 
+possible. &lt;a href="https://github.com/phofl"&gt;I am&lt;/a&gt; a member of the pandas core team.&lt;/p&gt;
+&lt;p&gt;We will also investigate how 
+&lt;a href="https://medium.com/towards-data-science/a-solution-for-inconsistencies-in-indexing-operations-in-pandas-b76e10719744"&gt;Copy on Write&lt;/a&gt; 
+will change the behavior for some operations to improve performance and avoid copies as much as 
+possible.&lt;/p&gt;
+&lt;h2 id="dataset"&gt;Dataset&lt;/h2&gt;
+&lt;p&gt;We will use a dataset that contains all players from FIFA 2021. You can download the
+dataset &lt;a href="https://www.kaggle.com/datasets/stefanoleone992/fifa-21-complete-player-dataset"&gt;here&lt;/a&gt;.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;import pandas as pd
+
+df = pd.read_csv(&amp;quot;players_21.csv&amp;quot;, index_col=&amp;quot;team_position&amp;quot;).sort_index()
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;We set each player's position as index and sort the &lt;code&gt;DataFrame&lt;/code&gt; by it.
+This will allow faster and easier access to the players by position and will help us to
+illustrate a few examples.&lt;/p&gt;
+&lt;h2 id="selecting-a-subset-of-rows"&gt;Selecting a subset of rows&lt;/h2&gt;
+&lt;p&gt;We start by selecting players by position from our dataset. There are a couple of ways to achieve
+this. The most common might be selecting by a boolean mask. We can calculate the boolean mask 
+to select all players with position &lt;code&gt;"LS"&lt;/code&gt; through:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;mask = df.index == &amp;quot;LS&amp;quot;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Afterwards, we can extract the rows from our DataFrame by:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;result1 = df[mask]
+result2 = df.loc[mask]
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Both operations achieve the same result in this case. We will investigate the differences
+when looking at modifying our DataFrame.&lt;/p&gt;
+&lt;p&gt;Selecting rows by a boolean mask &lt;strong&gt;always&lt;/strong&gt; creates a copy of the data. Depending on the
+size of your dataset, this might cause a significant slowdown. Alternatively, we can select the
+data by slicing the object:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;result = df.loc[&amp;quot;LS&amp;quot;]
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Slicing the object creates a view on the underlying data, which thus makes your operation
+significantly faster. You can also select every second/n-th row by:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;result = df.iloc[slice(1, len(df), 2)]
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;This will also create a view pointing to the original object. Getting a view is generally preferable, because
+it improves performance and reduces memory usage. On the other hand side, you could also
+create a list of integers corresponding with our slice:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;result = df.iloc[list(range(1, len(df), 2))]
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Selecting rows by a list of integers will create a copy, even though the operation look similar and
+returns exactly the same data. This is again derived from NumPy's indexing rules.&lt;/p&gt;
+&lt;p&gt;Slicing has many applications, for example
+by integer position, with a DatetimeIndex or slicing an Index with strings. Selecting data by 
+slice, if possible, is significantly faster than with a list of integers or boolean masks.&lt;/p&gt;
+&lt;p&gt;Summarizing, depending on your use case, you may be able to significantly improve performance
+when selecting rows. Setting an appropriate index might make your operations easier to
+read and more efficient. &lt;/p&gt;
+&lt;h2 id="selecting-a-subset-of-columns"&gt;Selecting a subset of columns&lt;/h2&gt;
+&lt;p&gt;There are generally two cases to consider when selecting columns from your DataFrame:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;selecting a single column&lt;/li&gt;
+&lt;li&gt;selecting multiple columns&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Selecting a single column is relatively straightforward, you can either use a regular &lt;strong&gt;getitem&lt;/strong&gt;
+or &lt;code&gt;loc&lt;/code&gt; for this. There is no substantial difference for a single column when selecting data, 
+only when we want to update said data.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;result = df[&amp;quot;long_name&amp;quot;]
+result = df.loc[:, &amp;quot;long_name&amp;quot;]
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;As soon as an iterable is passed to one of both calls, or if the selected column is duplicated,
+we get a DataFrame back, but a copy of the underlying data is made, e.g.:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;result = df.loc[:, [&amp;quot;short_name&amp;quot;, &amp;quot;long_name&amp;quot;]]
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Selecting more than one column generally makes a copy right now. All these operations will return
+views when &lt;code&gt;Copy-on-Write&lt;/code&gt; is enabled. This will improve performance significantly for lager 
+objects.&lt;/p&gt;
+&lt;h2 id="assigning-data-to-a-subset-of-the-dataframe"&gt;Assigning data to a subset of the DataFrame&lt;/h2&gt;
+&lt;p&gt;Let's look at how to update a subset of your DataFame efficiently. There are two general 
+possibilities: A regular &lt;strong&gt;setitem&lt;/strong&gt; or using &lt;code&gt;loc&lt;/code&gt; / &lt;code&gt;iloc&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;When adding a new column to a DataFrame, I would suggest using a regular &lt;strong&gt;setitem&lt;/strong&gt; operation.
+It is shorter and a bit easier to read. There is no substantial difference in both operations, e.g.:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df[&amp;quot;new_column&amp;quot;] = 100
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;There is a substantial difference when updating a DataFrame though. Assume we want to set the
+name for all players with position &lt;code&gt;"LS"&lt;/code&gt; in our object. A regular &lt;strong&gt;setitem&lt;/strong&gt; operation 
+&lt;strong&gt;never&lt;/strong&gt; writes into the underlying array. The data of this column are copied before the update 
+happens. Also, there is no way of updating a subset of a specific row in one operation. You'd have
+to use chained assignment, which has its own pitfalls. We will investigate them later. &lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;long_name = df[[&amp;quot;long_name&amp;quot;]]
+long_name[long_name.index == &amp;quot;LS&amp;quot;] = &amp;quot;Testname&amp;quot;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;We are copying the whole column before updating all rows that have index &lt;code&gt;"LS"&lt;/code&gt; inplace. This
+is significantly slower that using &lt;code&gt;loc&lt;/code&gt; / &lt;code&gt;iloc&lt;/code&gt;. Both methods update the underlying array
+inplace if possible. Additionally, we don't have to use a boolean mask to achieve this.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df.loc[&amp;quot;LS&amp;quot;, &amp;quot;long_name&amp;quot;] = &amp;quot;Testname&amp;quot;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;In general, &lt;code&gt;iloc&lt;/code&gt; is more efficient than &lt;code&gt;loc&lt;/code&gt;. The downside is, that you already have to
+know the positions where you want to insert your new values. But if you want to update a specific
+set of rows, using &lt;code&gt;iloc&lt;/code&gt; is more efficient than &lt;code&gt;loc&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;Setting values inplace without making a copy only works, if the dtype of the value/values to
+set is compatible with the dtype of the underlying array. For example, setting integer values into
+a float or object dtype column generally operates inplace. Setting a float value into an integer dtype
+column has to copy the data as well. An integer column can't hold a float value, and hence the
+data have to be cast into a dtype that can hold both values. As a side-note: There is an ongoing 
+&lt;a href="https://github.com/pandas-dev/pandas/pull/50424"&gt;discussion&lt;/a&gt;
+about deprecating this behavior and raise an error, if an incompatible value is set into a column. It
+would require casting the column explicitly to float before setting the values. Feedback on this
+proposal is welcome!&lt;/p&gt;
+&lt;p&gt;There is one specific exception: When overwriting a whole column, using a regular &lt;strong&gt;setitem&lt;/strong&gt;
+is generally faster than using &lt;code&gt;loc&lt;/code&gt;.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df[&amp;quot;long_name&amp;quot;] = &amp;quot;Testname&amp;quot;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;The reason for this is pretty simple: &lt;code&gt;loc&lt;/code&gt; writes into the underlying array, which means that
+you have to update every row for this column. The above operation simply swaps out the old column 
+and adds the new column to the object without copying anything.&lt;/p&gt;
+&lt;h2 id="chained-assignment"&gt;Chained assignment&lt;/h2&gt;
+&lt;p&gt;Chained assignment describes doing two indexing operations with one statement and then assigning
+data to the selected subset, e.g.:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df[&amp;quot;long_name&amp;quot;][df.index == &amp;quot;LS&amp;quot;] = &amp;quot;Testname&amp;quot;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;This operation updates the DataFrame accordingly. In general, chained assignment shouldn't be
+used, because it is the frequent culprit behind the &lt;code&gt;SettingWithCopyWarning&lt;/code&gt;. Additionally,
+chained assignment will raise an error with copy on write enabled globally or as soon as 
+copy on write becomes the default.&lt;/p&gt;
+&lt;h2 id="performance-comparison"&gt;Performance comparison&lt;/h2&gt;
+&lt;p&gt;Let's look at what this means performance-wise. This is just meant as a quick example to
+show how to improve the efficiency of your data selections through avoiding copies. You'll have to 
+tailor this to your application. &lt;code&gt;loc&lt;/code&gt; and &lt;code&gt;iloc&lt;/code&gt; are really flexible, so use-cases
+will vary a lot. &lt;/p&gt;
+&lt;p&gt;We need larger DataFrames
+to avoid noise in our operations. We instantiate a DataFrame with random numbers:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;import numpy as np
+
+df = pd.DataFrame(
+    np.random.randint(1, 100, (1_000_000, 30)), 
+    columns=[f&amp;quot;col_{i}&amp;quot; for i in range(30)],
+)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Let's look what slicing vs. selecting a list of integers means performance-wise:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;%timeit df.loc[slice(10_000, 900_000)]
+9.61 µs ± 493 ns per loop (mean ± std. dev. of 7 runs, 100,000 loops each)
+%timeit df.loc[list(range(10_000, 900_000))]
+68.2 ms ± 465 µs per loop (mean ± std. dev. of 7 runs, 10 loops each)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;This is a pretty significant difference for a small change to your code.
+Using &lt;code&gt;iloc&lt;/code&gt; shows the same difference.&lt;/p&gt;
+&lt;h2 id="conclusion"&gt;Conclusion&lt;/h2&gt;
+&lt;p&gt;You can speed up your data selection and data modification methods through choosing the
+best method for your operation. Generally, using a slice to select rows from a DataFrame is
+significantly faster than using a boolean mask or a list of integers. When setting values, you
+have to be careful to use compatible values. Additionally, we can improve performance by using
+&lt;code&gt;loc&lt;/code&gt; or &lt;code&gt;iloc&lt;/code&gt;, if we don't have a problem with modifying the underlying array.&lt;/p&gt;</content><category term="posts"></category><category term="pandas"></category></entry><entry><title>A solution for inconsistencies in indexing operations in pandas</title><link href="https://phofl.github.io/cow-introduction.html" rel="alternate"></link><published>2022-12-23T00:00:00+01:00</published><updated>2022-12-23T00:00:00+01:00</updated><author><name>Patrick Hoefler</name></author><id>tag:phofl.github.io,2022-12-23:/cow-introduction.html</id><summary type="html">&lt;p&gt;&lt;em&gt;Get rid of annoying SettingWithCopyWarning messages&lt;/em&gt;&lt;/p&gt;
 &lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
 &lt;p&gt;Indexing operations in pandas are quite flexible and thus, have many cases that can behave quite 
 different and therefore produce unexpected results. Additionally, it is hard to predict when a 
