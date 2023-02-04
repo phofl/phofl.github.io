@@ -19,3 +19,4 @@ TAG_FEED_ATOM = 'feeds/{slug}.atom.xml'
 DELETE_OUTPUT_DIRECTORY = True
 
 # Following items are often useful when publishing
+GOOGLE_ANALYTICS = "G-SE6TX73EFF"
