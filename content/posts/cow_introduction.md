@@ -263,5 +263,5 @@ with our data. The full proposal for CoW can be found
 [here](https://docs.google.com/document/d/1ZCQ9mx3LBMy-nhwRl33_jgcvWo9IWdEfxDNQ2thyTb0/edit#heading=h.iexejdstiz8u).
 
 Thank you for reading. Feel free to reach out to share your thoughts and feedback 
-on indexing and Copy on Write. I will write follow.up posts focused on this topic and pandas in 
+on indexing and Copy on Write. I will write follow-up posts focused on this topic and pandas in 
 general.
