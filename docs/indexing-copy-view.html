@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <!-- ## for client-side less
+  <link rel="stylesheet/less" type="text/css" href="https://phofl.github.io/theme/css/style.less">
+  <script src="//cdnjs.cloudflare.com/ajax/libs/less.js/1.7.3/less.min.js" type="text/javascript"></script>
+  -->
+  <link rel="icon" type="image/vnd.microsoft.icon" href="https://phofl.github.io/">
+  <link rel="stylesheet" type="text/css" href="https://phofl.github.io/theme/css/style.min.css">
+  <link rel="stylesheet" type="text/css" href="https://phofl.github.io/theme/css/pygments.css">
+  <link rel="stylesheet" type="text/css" href="//fonts.googleapis.com/css?family=Roboto+Mono">
+  <link rel="stylesheet" type="text/css" href="https://phofl.github.io/theme/css/font-awesome.min.css">
+  <link rel="stylesheet" type="text/css" href="https://phofl.github.io/theme/css/hatena-bookmark-icon.css">
+  <link rel="stylesheet" type="text/css" href="/docs/extra/custom.css">
+
+
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="author" content="Patrick Hoefler">
+  <meta name="description" content="Posts and writings by Patrick Hoefler">
+
+  <link href="https://phofl.github.io/feeds/all.atom.xml" type="application/atom+xml" rel="alternate" title="Patrick Hoefler Atom" />
+
+<meta name="keywords" content="pandas">
+
+  <title>
+    Patrick Hoefler
+&ndash; A guide to efficient data selection in pandas  </title>
+
+<script type="text/javascript">
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'G-SE6TX73EFF']);
+  _gaq.push(['_trackPageview']);
+
+  (function() {
+    var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+    ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+    var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+  })();
+</script>
+</head>
+
+<body>
+  <main>
+    <header>
+      <div class="site-name">
+        <a href="https://phofl.github.io">Patrick Hoefler</a>
+      </div>
+      <p>
+        <a href="https://phofl.github.io/archives.html"><i class="fa fa-archive"></i> Archive</a>
+      </p>
+    </header>
+
+<article>
+  <div class="article__title">
+    <h1><a href="https://phofl.github.io/indexing-copy-view.html">A guide to efficient data selection in pandas</a></h1>
+  </div>
+  <div class="article__meta">
+    <p class="article__meta__post-date">Posted on: Fri 10 February 2023</p>
+ Tags:
+      <a href="https://phofl.github.io/tag/pandas.html">#pandas</a>    </p>
+  </div>
+  <div class="article__text">
+    <p><em>Improve performance when selecting data from a pandas object</em></p>
+<h2 id="introduction">Introduction</h2>
+<p>There exist different ways of selecting a subset of data from a pandas object. Depending
+on the specific operation, the result will either be a view pointing to the original
+data or a copy of the original data. This ties directly to the efficiency of the operation. 
+The copy and view rules are partially derived from the 
+<a href="https://numpy.org/doc/stable/user/basics.indexing.html">NumPy advanced indexing rules</a>.
+We will look at different operations and how to improve performance and efficiency as much as 
+possible. <a href="https://github.com/phofl">I am</a> a member of the pandas core team.</p>
+<p>We will also investigate how 
+<a href="https://medium.com/towards-data-science/a-solution-for-inconsistencies-in-indexing-operations-in-pandas-b76e10719744">Copy on Write</a> 
+will change the behavior for some operations to improve performance and avoid copies as much as 
+possible.</p>
+<h2 id="dataset">Dataset</h2>
+<p>We will use a dataset that contains all players from FIFA 2021. You can download the
+dataset <a href="https://www.kaggle.com/datasets/stefanoleone992/fifa-21-complete-player-dataset">here</a>.</p>
+<pre><code class="language-python">import pandas as pd
+
+df = pd.read_csv(&quot;players_21.csv&quot;, index_col=&quot;team_position&quot;).sort_index()
+</code></pre>
+<p>We set each player's position as index and sort the <code>DataFrame</code> by it.
+This will allow faster and easier access to the players by position and will help us to
+illustrate a few examples.</p>
+<h2 id="selecting-a-subset-of-rows">Selecting a subset of rows</h2>
+<p>We start by selecting players by position from our dataset. There are a couple of ways to achieve
+this. The most common might be selecting by a boolean mask. We can calculate the boolean mask 
+to select all players with position <code>"LS"</code> through:</p>
+<pre><code class="language-python">mask = df.index == &quot;LS&quot;
+</code></pre>
+<p>Afterwards, we can extract the rows from our DataFrame by:</p>
+<pre><code class="language-python">result1 = df[mask]
+result2 = df.loc[mask]
+</code></pre>
+<p>Both operations achieve the same result in this case. We will investigate the differences
+when looking at modifying our DataFrame.</p>
+<p>Selecting rows by a boolean mask <strong>always</strong> creates a copy of the data. Depending on the
+size of your dataset, this might cause a significant slowdown. Alternatively, we can select the
+data by slicing the object:</p>
+<pre><code class="language-python">result = df.loc[&quot;LS&quot;]
+</code></pre>
+<p>Slicing the object creates a view on the underlying data, which thus makes your operation
+significantly faster. You can also select every second/n-th row by:</p>
+<pre><code class="language-python">result = df.iloc[slice(1, len(df), 2)]
+</code></pre>
+<p>This will also create a view pointing to the original object. Getting a view is generally preferable, because
+it improves performance and reduces memory usage. On the other hand side, you could also
+create a list of integers corresponding with our slice:</p>
+<pre><code class="language-python">result = df.iloc[list(range(1, len(df), 2))]
+</code></pre>
+<p>Selecting rows by a list of integers will create a copy, even though the operation look similar and
+returns exactly the same data. This is again derived from NumPy's indexing rules.</p>
+<p>Slicing has many applications, for example
+by integer position, with a DatetimeIndex or slicing an Index with strings. Selecting data by 
+slice, if possible, is significantly faster than with a list of integers or boolean masks.</p>
+<p>Summarizing, depending on your use case, you may be able to significantly improve performance
+when selecting rows. Setting an appropriate index might make your operations easier to
+read and more efficient. </p>
+<h2 id="selecting-a-subset-of-columns">Selecting a subset of columns</h2>
+<p>There are generally two cases to consider when selecting columns from your DataFrame:</p>
+<ul>
+<li>selecting a single column</li>
+<li>selecting multiple columns</li>
+</ul>
+<p>Selecting a single column is relatively straightforward, you can either use a regular <strong>getitem</strong>
+or <code>loc</code> for this. There is no substantial difference for a single column when selecting data, 
+only when we want to update said data.</p>
+<pre><code class="language-python">result = df[&quot;long_name&quot;]
+result = df.loc[:, &quot;long_name&quot;]
+</code></pre>
+<p>As soon as an iterable is passed to one of both calls, or if the selected column is duplicated,
+we get a DataFrame back, but a copy of the underlying data is made, e.g.:</p>
+<pre><code class="language-python">result = df.loc[:, [&quot;short_name&quot;, &quot;long_name&quot;]]
+</code></pre>
+<p>Selecting more than one column generally makes a copy right now. All these operations will return
+views when <code>Copy-on-Write</code> is enabled. This will improve performance significantly for lager 
+objects.</p>
+<h2 id="assigning-data-to-a-subset-of-the-dataframe">Assigning data to a subset of the DataFrame</h2>
+<p>Let's look at how to update a subset of your DataFame efficiently. There are two general 
+possibilities: A regular <strong>setitem</strong> or using <code>loc</code> / <code>iloc</code>.</p>
+<p>When adding a new column to a DataFrame, I would suggest using a regular <strong>setitem</strong> operation.
+It is shorter and a bit easier to read. There is no substantial difference in both operations, e.g.:</p>
+<pre><code class="language-python">df[&quot;new_column&quot;] = 100
+</code></pre>
+<p>There is a substantial difference when updating a DataFrame though. Assume we want to set the
+name for all players with position <code>"LS"</code> in our object. A regular <strong>setitem</strong> operation 
+<strong>never</strong> writes into the underlying array. The data of this column are copied before the update 
+happens. Also, there is no way of updating a subset of a specific row in one operation. You'd have
+to use chained assignment, which has its own pitfalls. We will investigate them later. </p>
+<pre><code class="language-python">long_name = df[[&quot;long_name&quot;]]
+long_name[long_name.index == &quot;LS&quot;] = &quot;Testname&quot;
+</code></pre>
+<p>We are copying the whole column before updating all rows that have index <code>"LS"</code> inplace. This
+is significantly slower that using <code>loc</code> / <code>iloc</code>. Both methods update the underlying array
+inplace if possible. Additionally, we don't have to use a boolean mask to achieve this.</p>
+<pre><code class="language-python">df.loc[&quot;LS&quot;, &quot;long_name&quot;] = &quot;Testname&quot;
+</code></pre>
+<p>In general, <code>iloc</code> is more efficient than <code>loc</code>. The downside is, that you already have to
+know the positions where you want to insert your new values. But if you want to update a specific
+set of rows, using <code>iloc</code> is more efficient than <code>loc</code>.</p>
+<p>Setting values inplace without making a copy only works, if the dtype of the value/values to
+set is compatible with the dtype of the underlying array. For example, setting integer values into
+a float or object dtype column generally operates inplace. Setting a float value into an integer dtype
+column has to copy the data as well. An integer column can't hold a float value, and hence the
+data have to be cast into a dtype that can hold both values. As a side-note: There is an ongoing 
+<a href="https://github.com/pandas-dev/pandas/pull/50424">discussion</a>
+about deprecating this behavior and raise an error, if an incompatible value is set into a column. It
+would require casting the column explicitly to float before setting the values. Feedback on this
+proposal is welcome!</p>
+<p>There is one specific exception: When overwriting a whole column, using a regular <strong>setitem</strong>
+is generally faster than using <code>loc</code>.</p>
+<pre><code class="language-python">df[&quot;long_name&quot;] = &quot;Testname&quot;
+</code></pre>
+<p>The reason for this is pretty simple: <code>loc</code> writes into the underlying array, which means that
+you have to update every row for this column. The above operation simply swaps out the old column 
+and adds the new column to the object without copying anything.</p>
+<h2 id="chained-assignment">Chained assignment</h2>
+<p>Chained assignment describes doing two indexing operations with one statement and then assigning
+data to the selected subset, e.g.:</p>
+<pre><code class="language-python">df[&quot;long_name&quot;][df.index == &quot;LS&quot;] = &quot;Testname&quot;
+</code></pre>
+<p>This operation updates the DataFrame accordingly. In general, chained assignment shouldn't be
+used, because it is the frequent culprit behind the <code>SettingWithCopyWarning</code>. Additionally,
+chained assignment will raise an error with copy on write enabled globally or as soon as 
+copy on write becomes the default.</p>
+<h2 id="performance-comparison">Performance comparison</h2>
+<p>Let's look at what this means performance-wise. This is just meant as a quick example to
+show how to improve the efficiency of your data selections through avoiding copies. You'll have to 
+tailor this to your application. <code>loc</code> and <code>iloc</code> are really flexible, so use-cases
+will vary a lot. </p>
+<p>We need larger DataFrames
+to avoid noise in our operations. We instantiate a DataFrame with random numbers:</p>
+<pre><code class="language-python">import numpy as np
+
+df = pd.DataFrame(
+    np.random.randint(1, 100, (1_000_000, 30)), 
+    columns=[f&quot;col_{i}&quot; for i in range(30)],
+)
+</code></pre>
+<p>Let's look what slicing vs. selecting a list of integers means performance-wise:</p>
+<pre><code class="language-python">%timeit df.loc[slice(10_000, 900_000)]
+9.61 µs ± 493 ns per loop (mean ± std. dev. of 7 runs, 100,000 loops each)
+%timeit df.loc[list(range(10_000, 900_000))]
+68.2 ms ± 465 µs per loop (mean ± std. dev. of 7 runs, 10 loops each)
+</code></pre>
+<p>This is a pretty significant difference for a small change to your code.
+Using <code>iloc</code> shows the same difference.</p>
+<h2 id="conclusion">Conclusion</h2>
+<p>You can speed up your data selection and data modification methods through choosing the
+best method for your operation. Generally, using a slice to select rows from a DataFrame is
+significantly faster than using a boolean mask or a list of integers. When setting values, you
+have to be careful to use compatible values. Additionally, we can improve performance by using
+<code>loc</code> or <code>iloc</code>, if we don't have a problem with modifying the underlying array.</p>
+  </div>
+
+</article>
+
+
+  </main>
+    <footer>
+      <section class="author">
+        <div class="author__name">
+          <a href="https://phofl.github.io/pages/about.html">Patrick Hoefler</a>
+          <p></p>
+        </div>
+        <div class="author__link">
+          <ul>
+            <li><a href="https://phofl.github.io/pages/about.html" title="About"><i class="fa fa-link"></i></a></li>
+            <li>
+              <a href="https://github.com/phofl/" target="_blank" title="github">
+                <i class="fa fa-github-square"></i>
+              </a>
+            </li>
+            <li>
+              <a href="https://www.linkedin.com/in/patrick-hoefler/" target="_blank" title="linkedin">
+                <i class="fa fa-linkedin-square"></i>
+              </a>
+            </li>
+            <li>
+              <a href="mailto:patrick_hoefler@gmx.net" target="_blank" title="mail">
+                <i class="fa fa-envelope"></i>
+              </a>
+            </li>
+            <li>
+              <a href="https://phofl.github.io/feeds/all.atom.xml" target="_blank" title="Feed">
+                <i class="fa fa-rss"></i>
+              </a>
+            </li>
+          </ul>
+        </div>
+      </section>
+      <div class="ending-message">
+        <p>&copy; Patrick Hoefler. Powered by <a href="http://getpelican.com" target="_blank">Pelican</a>, Theme is using <a href="https://github.com/laughk/pelican-hss" target="_blank">HSS</a>. </p>
+      </div>
+    </footer>
+</body>
+</html>
