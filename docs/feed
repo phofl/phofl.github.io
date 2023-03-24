@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<rss version="2.0"><channel><title>Patrick Hoefler</title><link>https://phofl.github.io/</link><description></description><lastBuildDate>Fri, 10 Feb 2023 00:00:00 +0100</lastBuildDate><item><title>A guide to efficient data selection in pandas</title><link>https://phofl.github.io/indexing-copy-view.html</link><description>&lt;p&gt;&lt;em&gt;Improve performance when selecting data from a pandas object&lt;/em&gt;&lt;/p&gt;
+<rss version="2.0"><channel><title>Patrick Hoefler</title><link>https://phofl.github.io/</link><description></description><lastBuildDate>Thu, 23 Mar 2023 00:00:00 +0100</lastBuildDate><item><title>Welcoming pandas 2.0</title><link>https://phofl.github.io/pandas-20.html</link><description>&lt;p&gt;&lt;em&gt;How the API is changing and how to leverage new functionalities&lt;/em&gt;&lt;/p&gt;
+&lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
+&lt;p&gt;After 3 years of development, the second pandas 2.0 release candidate was released on the 16th of 
+March. There are many new features in pandas 2.0, including improved extension array
+support, pyarrow support for DataFrames and …&lt;/p&gt;</description><dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Patrick Hoefler</dc:creator><pubDate>Thu, 23 Mar 2023 00:00:00 +0100</pubDate><guid isPermaLink="false">tag:phofl.github.io,2023-03-23:/pandas-20.html</guid><category>posts</category><category>pandas</category></item><item><title>A guide to efficient data selection in pandas</title><link>https://phofl.github.io/indexing-copy-view.html</link><description>&lt;p&gt;&lt;em&gt;Improve performance when selecting data from a pandas object&lt;/em&gt;&lt;/p&gt;
 &lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
 &lt;p&gt;There exist different ways of selecting a subset of data from a pandas object. Depending
 on the specific operation, the result will either be a view pointing to the original

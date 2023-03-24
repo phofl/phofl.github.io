@@ -1,5 +1,180 @@
 <?xml version="1.0" encoding="utf-8"?>
-<feed xmlns="http://www.w3.org/2005/Atom"><title>Patrick Hoefler - posts</title><link href="https://phofl.github.io/" rel="alternate"></link><link href="https://phofl.github.io/feeds/posts.atom.xml" rel="self"></link><id>https://phofl.github.io/</id><updated>2023-02-10T00:00:00+01:00</updated><entry><title>A guide to efficient data selection in pandas</title><link href="https://phofl.github.io/indexing-copy-view.html" rel="alternate"></link><published>2023-02-10T00:00:00+01:00</published><updated>2023-02-10T00:00:00+01:00</updated><author><name>Patrick Hoefler</name></author><id>tag:phofl.github.io,2023-02-10:/indexing-copy-view.html</id><summary type="html">&lt;p&gt;&lt;em&gt;Improve performance when selecting data from a pandas object&lt;/em&gt;&lt;/p&gt;
+<feed xmlns="http://www.w3.org/2005/Atom"><title>Patrick Hoefler - posts</title><link href="https://phofl.github.io/" rel="alternate"></link><link href="https://phofl.github.io/feeds/posts.atom.xml" rel="self"></link><id>https://phofl.github.io/</id><updated>2023-03-23T00:00:00+01:00</updated><entry><title>Welcoming pandas 2.0</title><link href="https://phofl.github.io/pandas-20.html" rel="alternate"></link><published>2023-03-23T00:00:00+01:00</published><updated>2023-03-23T00:00:00+01:00</updated><author><name>Patrick Hoefler</name></author><id>tag:phofl.github.io,2023-03-23:/pandas-20.html</id><summary type="html">&lt;p&gt;&lt;em&gt;How the API is changing and how to leverage new functionalities&lt;/em&gt;&lt;/p&gt;
+&lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
+&lt;p&gt;After 3 years of development, the second pandas 2.0 release candidate was released on the 16th of 
+March. There are many new features in pandas 2.0, including improved extension array
+support, pyarrow support for DataFrames and …&lt;/p&gt;</summary><content type="html">&lt;p&gt;&lt;em&gt;How the API is changing and how to leverage new functionalities&lt;/em&gt;&lt;/p&gt;
+&lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
+&lt;p&gt;After 3 years of development, the second pandas 2.0 release candidate was released on the 16th of 
+March. There are many new features in pandas 2.0, including improved extension array
+support, pyarrow support for DataFrames and non-nanosecond datetime resolution, but also
+many enforced deprecations and hence API changes. Before we investigate how new features can improve
+your workflow, we take a look at some enforced deprecations.&lt;/p&gt;
+&lt;h2 id="api-changes"&gt;API changes&lt;/h2&gt;
+&lt;p&gt;The 2.0 release is a major release for pandas (check out the 
+&lt;a href="https://pandas.pydata.org/docs/development/policies.html#version-policy"&gt;versioning policy&lt;/a&gt;), 
+hence all deprecations added in the 1.x series were enforced.
+There were around 150 different warnings in the latest 1.5.3 release. If your code runs without
+warnings on 1.5.3, you should be good to go on 2.0. We will have a quick look at some
+subtle or more noticeable deprecations before jumping into new features. You can check out the
+complete release notes &lt;a href="https://pandas.pydata.org/docs/dev/whatsnew/v2.0.0.html"&gt;here&lt;/a&gt;.&lt;/p&gt;
+&lt;h3 id="index-now-supports-arbitrary-numpy-dtypes"&gt;Index now supports arbitrary NumPy dtypes&lt;/h3&gt;
+&lt;p&gt;Before the 2.0 release, an &lt;code&gt;Index&lt;/code&gt; only supported &lt;code&gt;int64&lt;/code&gt;, &lt;code&gt;float64&lt;/code&gt; and &lt;code&gt;uint64&lt;/code&gt; dtypes 
+which resulted in an &lt;code&gt;Int64Index&lt;/code&gt;, &lt;code&gt;Float64Index&lt;/code&gt; or &lt;code&gt;UInt64Index&lt;/code&gt;. These classes where 
+removed. All numeric indexes are now represented as &lt;code&gt;Index&lt;/code&gt; with an associated dtype, e.g.:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;In [1]: pd.Index([1, 2, 3], dtype=&amp;quot;int64&amp;quot;)
+Out[1]: Index([1, 2, 3], dtype='int64')
+In [2]: pd.Index([1, 2, 3], dtype=&amp;quot;int32&amp;quot;)
+Out[2]: Index([1, 2, 3], dtype='int32')
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;This mirrors the behavior for extension array backed Indexes. An Index can hold arbitrary extension 
+array dtypes since pandas 1.4.0. You can check the 
+&lt;a href="https://pandas.pydata.org/docs/dev/whatsnew/v2.0.0.html#index-can-now-hold-numpy-numeric-dtypes"&gt;release notes&lt;/a&gt; 
+for further information. This change is only noticeable when an explicit Index subclass, that no
+longer exists, is used.&lt;/p&gt;
+&lt;h3 id="behavior-change-in-numeric_only-for-aggregation-functions"&gt;Behavior change in &lt;code&gt;numeric_only&lt;/code&gt; for aggregation functions&lt;/h3&gt;
+&lt;p&gt;In previous versions you could call aggregation functions on a DataFrame with mixed-dtypes and
+got varying results. Sometimes the aggregation worked and excluded non-numeric dtypes, in some
+other cases an error was raised. The &lt;code&gt;numeric_only&lt;/code&gt; argument is now consistent and the aggregation
+will raise if you apply it on a DataFrame with non-numeric dtypes. You can set &lt;code&gt;numeric_only&lt;/code&gt;
+to &lt;code&gt;True&lt;/code&gt; or restrict your DataFrame to numeric columns, if you want to get the same behavior
+as before. This will avoid accidentally dropping relevant columns from the &lt;code&gt;DataFrame&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;Calculating the mean over a DataFrame dropped non-numeric columns before 2.0:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;In[2] df = DataFrame({&amp;quot;a&amp;quot;: [1, 2, 3], &amp;quot;b&amp;quot;: [&amp;quot;x&amp;quot;, &amp;quot;y&amp;quot;, &amp;quot;z&amp;quot;]})
+In[3] df.mean()
+Out[3]: 
+a    2.0
+dtype: float64
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;This operation now raises an error to avoid dropping relevant columns in these aggregations:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;TypeError: Could not convert ['xyz'] to numeric
+&lt;/code&gt;&lt;/pre&gt;
+&lt;h2 id="improvements-and-new-features"&gt;Improvements and new features&lt;/h2&gt;
+&lt;p&gt;pandas 2.0 brings a some interesting new functionalities like PyArrow-backed DataFrames, 
+non-nanosecond resolution/accuracy for timestamps and many Copy-on-Write improvements. Let's take
+a closer look at some of those now.&lt;/p&gt;
+&lt;h3 id="improved-support-for-nullable-dtypes-and-extension-arrays"&gt;Improved support for nullable dtypes and extension arrays&lt;/h3&gt;
+&lt;p&gt;The 2.0 release brings a vast improvement for nullable dtypes and extension arrays in general.
+Internally, many operations now use nullable semantics instead of casting to object when
+using nullable dtypes like &lt;code&gt;Int64&lt;/code&gt;, &lt;code&gt;boolean&lt;/code&gt; or &lt;code&gt;Float64&lt;/code&gt;. The internal handling of extension
+arrays got consistently better over the 1.x series. This is visible through
+a bunch of significant performance improvements:&lt;/p&gt;
+&lt;p&gt;On pandas 2.0:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;In[3]: ser = pd.Series(list(range(1, 1_000_000)) + [pd.NA], dtype=&amp;quot;Int64&amp;quot;)
+In[4]: %timeit ser.drop_duplicates()
+7.54 ms ± 24 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;On pandas 1.5.3:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;In[3]: ser = pd.Series(list(range(1, 1_000_000)) + [pd.NA], dtype=&amp;quot;Int64&amp;quot;)
+In[4]: %timeit ser.drop_duplicates()
+22.7 ms ± 272 µs per loop (mean ± std. dev. of 7 runs, 10 loops each)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Additionally, many operations now properly operate on the nullable arrays which maintains the
+appropriate dtype when returning the result. All groupby algorithms now use nullable semantics,
+which results in better accuracy (previously the input was cast to float which might have let
+to a loss of precision) and performance improvements.&lt;/p&gt;
+&lt;p&gt;To improve opting into nullable dtypes, a new keyword &lt;code&gt;dtype_backen&lt;/code&gt; which returns
+a &lt;code&gt;DataFrame&lt;/code&gt; completely backed by nullable dtypes when set to &lt;code&gt;"numpy_nullable"&lt;/code&gt; was added to 
+most I/O functions. In addition to using nullable dtypes for numeric columns, 
+this option results in a &lt;code&gt;DataFrame&lt;/code&gt; that uses the pandas &lt;code&gt;StringDtype&lt;/code&gt;
+instead of a NumPy array with dtype &lt;code&gt;object&lt;/code&gt;. Based on the storage option, the string columns
+are either backed by Python strings or by PyArrow strings. The PyArrow alternative is generally
+faster than the Python strings.&lt;/p&gt;
+&lt;p&gt;The &lt;code&gt;Index&lt;/code&gt; and &lt;code&gt;MultiIndex&lt;/code&gt; classes are now better integrated with extension
+arrays in general. General Extension Array support was introduced in 1.4. A quick overview of what
+this entails:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Using extension array semantics for operations on the index&lt;/li&gt;
+&lt;li&gt;Efficient Indexing operations on nullable and pyarrow dtypes&lt;/li&gt;
+&lt;li&gt;No materialization of MultiIndexes to improve performance and maintain dtypes&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;The Extension Array interface is continuously improving and continues to avoid materializing NumPy 
+arrays and instead relies on the provided extension array implementation in a growing number
+of methods. Some areas are still under development, including GroupBy aggregations for third party 
+extension arrays.&lt;/p&gt;
+&lt;h3 id="pyarrow-backed-dataframes"&gt;Pyarrow-backed DataFrames&lt;/h3&gt;
+&lt;p&gt;Version 1.5.0 brought a new extension array to pandas that enables users to create &lt;code&gt;DataFrames&lt;/code&gt;
+backed by PyArrow arrays. We expect these extension arrays to provide a vast improvement when
+operating on string-columns, since the NumPy object representation is not very efficient. The
+string representation is mostly equivalent to&lt;code&gt;string[pyarrow]&lt;/code&gt; that has been around for quite some 
+time. The PyArrow-specific extension array supports all other PyArrow dtypes on top of it. Users can 
+now create columns with any PyArrow dtype and/or use PyArrow nullable semantics. Those
+come out of the box when using PyArrow dtypes. A PyArrow-backed column can be requested 
+specifically by casting to or specifying a column's dtype as &lt;code&gt;f"{dtype}[pyarrow]"&lt;/code&gt;, e.g. 
+&lt;code&gt;"int64[pyarrow]"&lt;/code&gt; for an integer column. Alternatively, a PyArrow dtype can be created through:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;import pandas as pd
+import pyarrow as pa
+
+dtype = pd.ArrowDtype(pa.int64)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;The API in 1.5.0 was pretty raw and experimental and fell back to NumPy quite often. With pandas 2.0 and an 
+increased minimum version of PyArrow (7.0 for pandas 2.0), we can now utilize the corresponding PyArrow compute 
+functions in many more methods. This improves performance significantly and gets rid of many
+&lt;code&gt;PerformanceWarnings&lt;/code&gt; that were raised before when falling back to NumPy. Similarly to the
+nullable dtypes, most I/O methods can return PyArrow-backed DataFrames through the keyword
+&lt;code&gt;dtype_backend="pyarrow"&lt;/code&gt;&lt;/p&gt;
+&lt;p&gt;Future versions of pandas will bring many more improvements in this area!&lt;/p&gt;
+&lt;p&gt;Some I/O methods have specific PyArrow engines, like &lt;code&gt;read_csv&lt;/code&gt; and &lt;code&gt;read_json&lt;/code&gt;, which bring
+a significant performance improvement when requesting PyArrow-backed &lt;code&gt;DataFrames&lt;/code&gt;. They don't 
+support all options that the original implementations support yet. Check out a more &lt;a href="https://datapythonista.me/blog/pandas-20-and-the-arrow-revolution-part-i"&gt;in-depth
+exploration&lt;/a&gt; from Marc 
+Garcia.&lt;/p&gt;
+&lt;h3 id="non-nanosecond-resolution-in-timestamps"&gt;Non-nanosecond resolution in Timestamps&lt;/h3&gt;
+&lt;p&gt;A long-standing issue in pandas was that timestamps were always represented in nanosecond 
+resolution. As a consequence, there was no way of representing dates before the 1st of January
+1970 or after the 11th of April 2264. This caused pains in the research community when analyzing
+timeseries data that spanned over millennia and more.&lt;/p&gt;
+&lt;p&gt;The 2.0 release introduces support for other resolutions, e.g. support for second, millisecond
+and microsecond resolution was added. This enables time ranges up to &lt;code&gt;+/- 2.9e11 years&lt;/code&gt; and thus 
+should cover most common use-cases.&lt;/p&gt;
+&lt;p&gt;On previous versions, passing a date to the &lt;code&gt;Timestamp&lt;/code&gt; constructor that was out of the supported
+range raised an error no matter what unit was specified. With pandas 2.0 the unit is honored, and
+thus you can create arbitrary dates:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;In[5]: pd.Timestamp(&amp;quot;1000-10-11&amp;quot;, unit=&amp;quot;s&amp;quot;)
+Out[5]: Timestamp('1000-10-11 00:00:00')
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;The timestamp is only returned up to the second, higher precisions are not supported when specifying
+&lt;code&gt;unit="s"&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;Support for non-nanosecond resolutions of timestamps is still actively developed. Many
+methods relied on the assumption that a timestamp was always given in nanosecond resolution. It is
+a lot of work to get rid of these problems everywhere and hence you might still encounter some
+bugs in different areas.&lt;/p&gt;
+&lt;h3 id="copy-on-write-improvements"&gt;Copy-on-Write improvements&lt;/h3&gt;
+&lt;p&gt;Copy-on-Write (CoW) was originally introduced in pandas 1.5.0. Check out my initial post introducing
+&lt;a href="https://phofl.github.io/cow-introduction.html"&gt;Copy-on-Write&lt;/a&gt;.&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;&lt;strong&gt;Short summary:&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Any DataFrame or Series derived from another in&lt;/strong&gt; 
+&lt;strong&gt;any way always behaves as a copy&lt;/strong&gt;. As a consequence, we can only change the values of an object 
+through modifying the object itself. CoW disallows updating a DataFrame or a Series that shares 
+data with another DataFrame or Series object inplace.&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;Version 1.5 provided the general mechanism but not much apart from that. A couple of bugs where 
+Copy-on-Write was not respected, and hence two objects could get modified with one operation, were
+discovered and fixed since then.&lt;/p&gt;
+&lt;p&gt;More importantly, nearly all methods now utilize a &lt;em&gt;lazy copy&lt;/em&gt; mechanism to avoid copying the
+underlying data as long as possible. Without CoW enabled, most methods perform defensive copies 
+to avoid side effects when an object is modified later on. This results in high memory usage and a
+relatively high runtime. Copy-on-Write enables us to remove all defensive copies and defer
+the actual copies until the data of an object are modified.&lt;/p&gt;
+&lt;p&gt;Additionally, CoW provides a cleaner and easier to work with API and should give your code a
+performance boost on top of it. Generally, if an application does not rely on updating more than one object at
+once and does not utilize chained assignment, the risk of turning Copy-on-Write 
+on is minor. I've tested it on some code-bases and saw promising performance improvements, so I'd recommend
+trying it out to see how it impacts your code. We are currently planning on making CoW the default in the next
+major release. I'd recommend developing new features with Copy-on-Write enabled
+to avoid migration issues later on.&lt;/p&gt;
+&lt;p&gt;A PDEP (pandas development enhancement proposal) was submitted to deprecate and remove the
+&lt;code&gt;inplace&lt;/code&gt; and &lt;code&gt;copy&lt;/code&gt; keyword in most methods. Those would become obsolete with Copy-on-Write
+enabled and would only add confusion for users. You can follow this discussion 
+&lt;a href="https://github.com/pandas-dev/pandas/pull/51466"&gt;here&lt;/a&gt;. If accepted, the removal of both keywords
+will happen when CoW is made the default.&lt;/p&gt;
+&lt;h2 id="conclusion"&gt;Conclusion&lt;/h2&gt;
+&lt;p&gt;pandas 2.0 brings many new and exiting features. We've seen a couple of them and looked at how
+to utilize them. &lt;/p&gt;
+&lt;p&gt;Thank you for reading. Feel free to reach out in the comments to share your thoughts and feedback 
+on the 2.0 release. I will write additional posts focusing on Copy-on-Write and how to get the
+most out of it. Follow me on Medium if you like to read more about pandas in general.&lt;/p&gt;</content><category term="posts"></category><category term="pandas"></category></entry><entry><title>A guide to efficient data selection in pandas</title><link href="https://phofl.github.io/indexing-copy-view.html" rel="alternate"></link><published>2023-02-10T00:00:00+01:00</published><updated>2023-02-10T00:00:00+01:00</updated><author><name>Patrick Hoefler</name></author><id>tag:phofl.github.io,2023-02-10:/indexing-copy-view.html</id><summary type="html">&lt;p&gt;&lt;em&gt;Improve performance when selecting data from a pandas object&lt;/em&gt;&lt;/p&gt;
 &lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
 &lt;p&gt;There exist different ways of selecting a subset of data from a pandas object. Depending
 on the specific operation, the result will either be a view pointing to the original
@@ -336,5 +511,5 @@ It can potentially impact performance positively or negatively based on what we 
 with our data. The full proposal for CoW can be found 
 &lt;a href="https://docs.google.com/document/d/1ZCQ9mx3LBMy-nhwRl33_jgcvWo9IWdEfxDNQ2thyTb0/edit#heading=h.iexejdstiz8u"&gt;here&lt;/a&gt;.&lt;/p&gt;
 &lt;p&gt;Thank you for reading. Feel free to reach out to share your thoughts and feedback 
-on indexing and Copy on Write. I will write follow.up posts focused on this topic and pandas in 
+on indexing and Copy on Write. I will write follow-up posts focused on this topic and pandas in 
 general.&lt;/p&gt;</content><category term="posts"></category><category term="pandas"></category></entry></feed>
