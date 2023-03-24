@@ -1,16 +1,16 @@
 ---
 title: Welcoming pandas 2.0
-date: xxx
+date: 23.03.2023
 slug: pandas-20
 tags: pandas
 ---
 
-_How the API will change and how to utilize new functionalities_
+_How the API is changing and how to leverage new functionalities_
 
 ## Introduction
 
-After 3 years of development, the pandas 2.0 release candidate was released on the 20th of 
-February. There are many new features in pandas 2.0, including improved extension array
+After 3 years of development, the second pandas 2.0 release candidate was released on the 16th of 
+March. There are many new features in pandas 2.0, including improved extension array
 support, pyarrow support for DataFrames and non-nanosecond datetime resolution, but also
 many enforced deprecations and hence API changes. Before we investigate how new features can improve
 your workflow, we take a look at some enforced deprecations.
@@ -41,8 +41,8 @@ Out[2]: Index([1, 2, 3], dtype='int32')
 This mirrors the behavior for extension array backed Indexes. An Index can hold arbitrary extension 
 array dtypes since pandas 1.4.0. You can check the 
 [release notes](https://pandas.pydata.org/docs/dev/whatsnew/v2.0.0.html#index-can-now-hold-numpy-numeric-dtypes) 
-for further information. This change is only noticeable when an explicit Index subclass that no
-longer exists is used.
+for further information. This change is only noticeable when an explicit Index subclass, that no
+longer exists, is used.
 
 ### Behavior change in ``numeric_only`` for aggregation functions
 
@@ -53,16 +53,35 @@ will raise if you apply it on a DataFrame with non-numeric dtypes. You can set `
 to ``True`` or restrict your DataFrame to numeric columns, if you want to get the same behavior
 as before. This will avoid accidentally dropping relevant columns from the ``DataFrame``.
 
+Calculating the mean over a DataFrame dropped non-numeric columns before 2.0:
+
+```python
+In[2] df = DataFrame({"a": [1, 2, 3], "b": ["x", "y", "z"]})
+In[3] df.mean()
+Out[3]: 
+a    2.0
+dtype: float64
+```
+
+This operation now raises an error to avoid dropping relevant columns in these aggregations:
+
+```python
+TypeError: Could not convert ['xyz'] to numeric
+```
+
 ## Improvements and new features
 
-Let's look at some general improvements and newly introduced features. 
+pandas 2.0 brings a some interesting new functionalities like PyArrow-backed DataFrames, 
+non-nanosecond resolution/accuracy for timestamps and many Copy-on-Write improvements. Let's take
+a closer look at some of those now.
 
 ### Improved support for nullable dtypes and extension arrays
 
 The 2.0 release brings a vast improvement for nullable dtypes and extension arrays in general.
 Internally, many operations now use nullable semantics instead of casting to object when
-using nullable dtypes like ``Int64``, ``boolean`` or ``Float64``. This is visible through
-vast performance improvements:
+using nullable dtypes like ``Int64``, ``boolean`` or ``Float64``. The internal handling of extension
+arrays got consistently better over the 1.x series. This is visible through
+a bunch of significant performance improvements:
 
 On pandas 2.0:
 
@@ -85,11 +104,13 @@ appropriate dtype when returning the result. All groupby algorithms now use null
 which results in better accuracy (previously the input was cast to float which might have let
 to a loss of precision) and performance improvements.
 
-Most I/O methods like ``read_csv`` gained a new keyword ``use_nullable_dtypes`` which returns
-a ``DataFrame`` completely backed by nullable dtypes. These keyword can be set to ``True`` through
-the global option ``nullable_dtypes``. This simplifies opting into nullable dtypes
-globally. Additionally, this option results in a ``DataFrame`` that uses the ``string`` dtype
-instead of a NumPy array with dtype ``object``.
+To improve opting into nullable dtypes, a new keyword ``dtype_backen`` which returns
+a ``DataFrame`` completely backed by nullable dtypes when set to ``"numpy_nullable"`` was added to 
+most I/O functions. In addition to using nullable dtypes for numeric columns, 
+this option results in a ``DataFrame`` that uses the pandas ``StringDtype``
+instead of a NumPy array with dtype ``object``. Based on the storage option, the string columns
+are either backed by Python strings or by PyArrow strings. The PyArrow alternative is generally
+faster than the Python strings.
 
 The ``Index`` and ``MultiIndex`` classes are now better integrated with extension
 arrays in general. General Extension Array support was introduced in 1.4. A quick overview of what
@@ -99,21 +120,22 @@ this entails:
 - Efficient Indexing operations on nullable and pyarrow dtypes
 - No materialization of MultiIndexes to improve performance and maintain dtypes
 
-The Extension Array interface is continuously improving and further avoids materializing NumPy 
-arrays and instead relies on the provided extension array implementation. Some areas are still under 
-development, including GroupBy aggregations for third party extension arrays.
+The Extension Array interface is continuously improving and continues to avoid materializing NumPy 
+arrays and instead relies on the provided extension array implementation in a growing number
+of methods. Some areas are still under development, including GroupBy aggregations for third party 
+extension arrays.
 
 ### Pyarrow-backed DataFrames
 
-Version 1.5.0 brought a new extension array to pandas that allows users to create ``DataFrames``
-backed by pyarrow arrays. We expect these extension arrays to provide a vast improvement when
+Version 1.5.0 brought a new extension array to pandas that enables users to create ``DataFrames``
+backed by PyArrow arrays. We expect these extension arrays to provide a vast improvement when
 operating on string-columns, since the NumPy object representation is not very efficient. The
 string representation is mostly equivalent to``string[pyarrow]`` that has been around for quite some 
-time. The pyarrow-specific extension array supports all other pyarrow dtypes on top of it. Users can 
-now create columns with any pyarrow dtype and use pyarrow nullable semantics. Those
-come out of the box when using pyarrow dtypes. A pyarrow-backed column can be requested 
+time. The PyArrow-specific extension array supports all other PyArrow dtypes on top of it. Users can 
+now create columns with any PyArrow dtype and/or use PyArrow nullable semantics. Those
+come out of the box when using PyArrow dtypes. A PyArrow-backed column can be requested 
 specifically by casting to or specifying a column's dtype as ``f"{dtype}[pyarrow]"``, e.g. 
-``"int64[pyarrow]"`` for an integer column. Alternatively, a pyarrow dtype can be created through:
+``"int64[pyarrow]"`` for an integer column. Alternatively, a PyArrow dtype can be created through:
 
 ```python
 import pandas as pd
@@ -123,22 +145,16 @@ dtype = pd.ArrowDtype(pa.int64)
 ```
 
 The API in 1.5.0 was pretty raw and experimental and fell back to NumPy quite often. With pandas 2.0 and an 
-increased minimum version of pyarrow (7.0 for pandas 2.0), we can now utilize the corresponding pyarrow compute 
+increased minimum version of PyArrow (7.0 for pandas 2.0), we can now utilize the corresponding PyArrow compute 
 functions in many more methods. This improves performance significantly and gets rid of many
 ``PerformanceWarnings`` that were raised before when falling back to NumPy. Similarly to the
-nullable dtypes, most I/O methods can return pyarrow-backed DataFrames through the keyword
-``use_nullable_dtypes`` and setting the global option ``dtype_backend`` to pyarrow:
-
-```python
-import pandas as pd
-
-pd.options.mode.dtype_backend = "pyarrow"
-```
+nullable dtypes, most I/O methods can return PyArrow-backed DataFrames through the keyword
+``dtype_backend="pyarrow"``
 
 Future versions of pandas will bring many more improvements in this area!
 
-Some I/O methods have specific pyarrow engines, like ``read_csv`` and ``read_json``, which bring
-a significant performance improvement when requesting pyarrow backed ``DataFrames``. They don't 
+Some I/O methods have specific PyArrow engines, like ``read_csv`` and ``read_json``, which bring
+a significant performance improvement when requesting PyArrow-backed ``DataFrames``. They don't 
 support all options that the original implementations support yet. Check out a more [in-depth
 exploration](https://datapythonista.me/blog/pandas-20-and-the-arrow-revolution-part-i) from Marc 
 Garcia.
@@ -147,7 +163,7 @@ Garcia.
 
 A long-standing issue in pandas was that timestamps were always represented in nanosecond 
 resolution. As a consequence, there was no way of representing dates before the 1st of January
-1970 or after the 11th of April 2264. This caused pains in the research community when analysing
+1970 or after the 11th of April 2264. This caused pains in the research community when analyzing
 timeseries data that spanned over millennia and more.
 
 The 2.0 release introduces support for other resolutions, e.g. support for second, millisecond
@@ -197,7 +213,7 @@ Additionally, CoW provides a cleaner and easier to work with API and should give
 performance boost on top of it. Generally, if an application does not rely on updating more than one object at
 once and does not utilize chained assignment, the risk of turning Copy-on-Write 
 on is minor. I've tested it on some code-bases and saw promising performance improvements, so I'd recommend
-trying it out to see how it impacts your code. We are planning on making CoW the default in the next
+trying it out to see how it impacts your code. We are currently planning on making CoW the default in the next
 major release. I'd recommend developing new features with Copy-on-Write enabled
 to avoid migration issues later on.
 
