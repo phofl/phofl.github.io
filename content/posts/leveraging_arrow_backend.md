@@ -25,11 +25,11 @@ including improving the PyArrow integration.
 
 ## General overview of PyArrow support
 
-The PyArrow dtypes were initially introduced in pandas 1.5. This means that support for them is
+PyArrow dtypes were initially introduced in pandas 1.5. This means that support for them is
 still relatively new. pandas 2.0 provided a huge improvement, including making opting into them easy.
 There is still some work left to support them properly everywhere. They should be used with caution
-for a couple of months. Both projects work continuously to improve support throughout the Dask and 
-pandas APIs.
+for a couple of months. Both projects work continuously to improve support throughout Dask and 
+pandas.
 
 We encourage users to try them out to get a better idea of what is still lacking support or not 
 efficient enough. Giving feedback helps us improve support and will drastically reduce the
@@ -39,7 +39,7 @@ time that is necessary to find all issues and create a smooth user experience.
 
 We will use the taxi dataset from New York City that provides all Uber and Lyft rides, including
 some interesting attributes like price, tips, driver pay and many more. The dataset can be found
-[here](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page) and is stored as parquet
+[here](https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page) and is stored in parquet
 files. When analyzing Dask queries, we will use a publicly available S3 bucket to simplify our
 queries: ``s3://coiled-datasets/uber-lyft-tlc/``. We will use the dataset from December 2022 
 for our pandas queries, since this is the maximum that fits comfortably into memory on my 
@@ -51,7 +51,7 @@ that can be found [here](https://www.kaggle.com/datasets/sobhanmoosavi/us-accide
 
 ## Dask cluster
 
-There are a multitude of different options to set up a Dask cluster, see the 
+There are various different options to set up a Dask cluster, see the 
 [Dask documentation](https://docs.dask.org/en/stable/deploying.html) for
 a non-exhaustive list of deployment options. I will use 
 [Coiled](https://docs.coiled.io/user_guide/index.html) to create a cluster on AWS with
@@ -77,10 +77,10 @@ modifications in this blog post.
 We begin with a feature that was originally introduced in pandas 1.0 and has been around for quite
 some time. The ``StringDtype`` is relatively mature and can be used without expecting any problems. 
 
-Historically, pandas represented string data as NumPy object. NumPy object data is stored as an 
+Historically, pandas represented string data through NumPy arrays with dtype ``object``. NumPy object data is stored as an 
 array of pointers that point to the actual data in memory. This makes iterating over an array of 
-strings very slow, since the data are not contiguous in memory. pandas 1.0 intially introduced a
-string dtype, that allowed easier operations on strings. This dtype was still backed by Python 
+strings very slow. pandas 1.0 intially introduced a
+string dtype that allowed easier operations on strings. This dtype was still backed by Python 
 strigs and thus, wasn't very performant either. Rather, it provided a clear abstraction of string
 data.
 
@@ -94,7 +94,7 @@ by setting
 pd.options.mode.string_storage = "pyarrow"
 ````
 
-and sepcifying ``string`` as the dtype. Since Dask builds on top of pandas, the string dtype
+and sepcifying ``string`` as the dtype. Since Dask builds on top of pandas, this string dtype
 is available as well. On top of that, Dask offers a convenient option 
 that automatically converts all string-data to ``string[pyarrow]``.
 
@@ -104,8 +104,8 @@ dask.config.set({"dataframe.convert-string": True})
 
 This is a convenient way of
 avoiding NumPy object dtype for string columns. Additionally, it has the advantage that it
-creates PyArrow array natively, if the I/O method provides Arrow objects directly. Memory usage is
-a big pain point for Dask users. Memory restrictions are harder to overcome in distributed environments.
+creates PyArrow arrays natively, if the I/O method provides Arrow objects directly. Memory usage is
+a big pain point for Dask users.
 On top of providing huge performance improvements, PyArrow strings consume significantly less
 memory. An average Dask DataFrame with PyArrow strings consumes around 33-50% of the original
 memory compared to NumPy object. PyArrow backed strings are mature enough to provide a smooth user
@@ -252,7 +252,7 @@ and still get a performance boost out of it.
 
 Summarizing, we saw that PyArrow string-columns are a huge improvement to NumPy object columns in
 DataFrames. Switching to PyArrow strings is a relatively small change that might improve the 
-performance and efficiency of an average workflow that depends on string-data. These improvements 
+performance and efficiency of an average workflow that depends on string data. These improvements 
 are visible for pandas and Dask!
 
 ## engine keyword in I/O methods
@@ -270,14 +270,14 @@ pd.read_csv("US_Accidents_Dec21_updated.csv", engine="pyarrow")
 This configuration will return the same results as the other engines. The only difference is that
 PyArrow is used to read the data. The same option is available for ``read_json``.
 The engines were added to provide a faster way of reading data. The improved speed is only
-one of the advantages. The Arrow readers return the data as a 
+one of the advantages. The PyArrow parsers return the data as a 
 [PyArrow Table](https://arrow.apache.org/docs/python/generated/pyarrow.Table.html). A PyArrow Table
 provides built-in functionality to convert to a pandas ``DataFrame``. Depending on the data, this
 might require a copy while casting to NumPy (string, integers with missing values, ...), which
 brings an unnecessary slowdown. This is where the PyArrow ``dtype_backend`` comes in.
 It is implemented as an ``ArrowExtensionArray`` class in pandas, which is backed by a 
 [PyArrow ChunkedArray](https://arrow.apache.org/docs/python/generated/pyarrow.ChunkedArray.html).
-As a direct consequence, the conversion from a PyArrow Table to pandas is extremely cheap, since it
+As a direct consequence, the conversion from a PyArrow Table to pandas is extremely cheap since it
 does not require any copies. 
 
 ```python
@@ -285,7 +285,7 @@ pd.read_csv("US_Accidents_Dec21_updated.csv", engine="pyarrow", dtype_backend="p
 ```
 
 This returns a ``DataFrame`` that is backed by PyArrow arrays. pandas isn't optimized everywhere
-yet, so this can give you a slowdown in follow-up operations. It might be worthwile, if
+yet, so this can give you a slowdown in follow-up operations. It might be worth it if
 the workload is particularly I/O heavy. Let's look at a direct comparison:
 
 ![](./../images/arrow_backend/pandas_read_csv_performance.svg)
@@ -329,8 +329,8 @@ this explicitly.
 
 The PyArrow-engine runs around 2 times faster than the C-engine. Both implementations used the same
 number of machines. The memory usage was reduced by 50% with the PyArrow ``dtype_backend``. The same
-reduction is available if only object columns are converted to PyArrow strings as well, which gives
-a better experience in other methods.
+reduction is available if only object columns are converted to PyArrow strings, which gives
+a better experience in follow-up operations.
 
 We've seen that the Arrow-engines provide significant speedups over the custom C implementations.
 They don't support all features of the custom implementations yet, but if your use-case is 
@@ -338,7 +338,7 @@ compatible with the supported options, you should get a significant speedup for 
 
 The case with the PyArrow ``dtype_backend`` is a bit more complicated. Not all areas of the API are
 optimized yet. If you spend a lot of time processing your data outside I/O functions, then this might not 
-give you what you need. It will speed up your processing though, if your workflow spends a lot of
+give you what you need. It will speed up your processing if your workflow spends a lot of
 time reading the data.
 
 ## dtype_backend in PyArrow native I/O readers
@@ -360,8 +360,8 @@ We read the data with and without ``dtype_backend="pyarrow"``.
 
 ![](../images/arrow_backend/pandas_read_parquet_performance.svg)
 
-We can easily see that the most time is taken up by the conversion after reading of the
-Parquet file has finished. The function runs 3 times as fast when avoiding
+We can easily see that the most time is taken up by the conversion after the reading of the
+Parquet file was finished. The function runs 3 times as fast when avoiding
 the conversion to NumPy dtypes.
 
 Dask has a specialized implementation for ``read_parquet`` that has some advantages tailored to
@@ -417,4 +417,7 @@ dtypes with the potential to speed up an average workflow in the near future.
 There is a current proposal in pandas to start inferring strings as PyArrow backed strings by
 default starting from pandas 3.0. Additionally, it includes many more areas where leaning more
 onto PyArrow makes a lot of sense (e.g. Decimals, structured data, ...). You can read up on the
-proposal here (TODO link).
+proposal [here](https://github.com/pandas-dev/pandas/pull/52711).
+
+Thank you for reading. Feel free to reach out to share your thoughts and feedback 
+about PyArrow support in both libraries.
