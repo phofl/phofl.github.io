@@ -9,6 +9,12 @@ _Get the most out of PyArrow support in pandas and Dask right now_
 
 ## Introduction
 
+General support for PyArrow dtypes was added with pandas 2.0 to both pandas and Dask. This solves a
+bunch of long-standing pains for users of both libraries. Running out of memory is by far the most
+common pain for users of Dask, this is mitigated in a big way by PyArrow backed string columns
+which consume up to 70% less memory compared to NumPy object columns. We will get a huge performance
+improvement in a bunch of areas on top of this.
+
 Support for PyArrow dtypes in pandas, and by extension Dask, is still relatively new. I would 
 still recommend caution when opting into the PyArrow ``dtype_backend``, since not every part of both 
 APIs is optimized yet. You should be able to get a big improvement with a bit of 
@@ -16,8 +22,8 @@ awareness though. I will go through a bunch of examples where I'd recommend swit
 in both libraries. 
 
 Dask itself can benefit in various ways from PyArrow dtypes. We will investigate how PyArrow backed
-strings influence memory usage on Dask clusters and whether we can improve general and I/O 
-performance through utilizing PyArrow.
+strings can easily mitigate the common pain of running out of memory on Dask clusters and whether we 
+can improve general and I/O performance through utilizing PyArrow.
 
 I am part of the pandas core team and was heavily involved in implementing and improving PyArrow 
 support in pandas. I've recently joined [Coiled](https://www.coiled.io) where I am working on Dask,
@@ -64,6 +70,7 @@ cluster = coiled.Cluster(
     n_workers=30,
     name="dask-performance-comparisons",
     region="us-east-2",  # this is the region of our dataset
+    worker_vm_type="m6i.large",
 )
 ```
 
@@ -197,6 +204,7 @@ cluster has 30 machines, which is enough to perform our computations comfortably
 ```python
 import dask
 import dask.dataframe as dd
+from distributed import wait
 
 dask.config.set({"dataframe.convert-string": True})
 
@@ -205,6 +213,7 @@ df = dd.read_parquet(
     storage_options={"anon": True},
 )
 df = df.persist()
+wait(df)  # Wait till the computation is finished
 ```
 
 We persist the data in memory so that we don't skew our performance measurements. Our data is now
@@ -218,6 +227,10 @@ columns in our DataFrame, which means that the memory savings are actually highe
 when switching to PyArrow strings. Consequently, we will reduce the size of our cluster to 15 workers
 when performing our operations on PyArrow string columns.
 
+```python
+cluster.scale(15)
+```
+
 We measure the performance of the mask-operation and one of the String accessors together through
 subsequent filtering of the DataFrame. 
 
@@ -225,6 +238,7 @@ subsequent filtering of the DataFrame.
 df = df[df["hvfhs_license_num"] == "HV0003"]
 df = df[df["dispatching_base_num"].str.startswith("B028")]
 df = df.persist()
+wait(df)
 ```
 
 We see that we can use the same methods as in our previous example. This makes transitioning from
@@ -240,13 +254,15 @@ df = df.groupby(
 ).mean(numeric_only=True)
 
 df = df.persist()
+wait(df)
 ```
 
 ![](.././images/arrow_backend/Dask_string_performance_comparison.svg)
 
 We get nice improvements by factors of 2 and 3. This is especially intriguing since we reduced
-the size of our cluster from 30 machines to 15. Subsequently, we also reduced our computational 
-resources by a factor of 2, which makes our performance improvement even more impressive. We can
+the size of our cluster from 30 machines to 15, reducing the cost by 50%. Subsequently, we also reduced our computational 
+resources by a factor of 2, which makes our performance improvement even more impressive. Thus,
+the performance improved by a factor of 4 and 6 respectively. We can
 perform the same computations on a smaller cluster, which saves money and is more efficient in general
 and still get a performance boost out of it.
 
@@ -316,7 +332,7 @@ df = dd.read_csv(
     parse_dates=["timestamp"],
 )
 df = df.persist()  # trigger the actual parsing
-wait(df)  # Wait till the computation is finished to measure performance
+wait(df)
 ```
 
 We will execute this code-snippet for ``engine="c"``, ``engine="pyarrow"`` and additionally
