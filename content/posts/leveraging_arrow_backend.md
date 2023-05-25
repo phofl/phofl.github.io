@@ -79,7 +79,7 @@ resources for me. 30 machines are enough to comfortably operate on our dataset. 
 how we can reduce the required number of workers to 15 instead of 30 through some small 
 modifications in this blog post.
 
-## pandas StringDtype back by PyArrow
+## pandas StringDtype backed by PyArrow
 
 We begin with a feature that was originally introduced in pandas 1.0 and has been around for quite
 some time. The ``StringDtype`` is relatively mature and can be used without expecting any problems. 
@@ -88,7 +88,7 @@ Historically, pandas represented string data through NumPy arrays with dtype ``o
 array of pointers that point to the actual data in memory. This makes iterating over an array of 
 strings very slow. pandas 1.0 intially introduced a
 string dtype that allowed easier operations on strings. This dtype was still backed by Python 
-strigs and thus, wasn't very performant either. Rather, it provided a clear abstraction of string
+strings and thus, wasn't very performant either. Rather, it provided a clear abstraction of string
 data.
 
 pandas 1.3 finally introduced an efficient string dtype. This datatype is backed by PyArrow strings.
@@ -101,7 +101,7 @@ by setting
 pd.options.mode.string_storage = "pyarrow"
 ````
 
-and sepcifying ``string`` as the dtype. Since Dask builds on top of pandas, this string dtype
+and specifying ``string`` as the dtype. Since Dask builds on top of pandas, this string dtype
 is available as well. On top of that, Dask offers a convenient option 
 that automatically converts all string-data to ``string[pyarrow]``.
 
@@ -122,7 +122,7 @@ Let's look at a few operations that represent typical string operations. We will
 of pandas examples before switching over to operations on our Dask cluster.
 
 We will use ``df.convert_dtypes`` to convert our object columns to PyArrow string arrays. There
-are more efficient ways of getting PyArrow dtypes in pandas that we will explore later. We use
+are more efficient ways of getting PyArrow dtypes in pandas that we will explore later. We will use
 the Uber-Lyft dataset from December 2022, this file fits comfortably into memory on my machine.
 
 ```python
