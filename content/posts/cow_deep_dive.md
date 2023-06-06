@@ -104,7 +104,91 @@ which would avoid views in pandas altogether. This would guarantee CoW semantics
 huge performance penalty, so this wasn't an option for us. 
 
 We will now dive into the mechanism that ensures that no two objects are updated with a single
-operation, but also that no unnecessary copies are made. 
+operation __and__ that your data isn't unnecessarily copied.
+
+We have to know exactly when to trigger a copy to achieve this objective. This means that we have
+to keep track of whether one NumPy array is referenced by two DataFrames (generally, we have to be
+aware if one NumPy array is referenced by two pandas objects, but I will use DataFrame for 
+simplicity).
+
+```python
+df = pd.DataFrame({"student_id": [1, 2, 3], "grade": [1, 2, 3]})
+df2 = df[:]
+```
+
+This statement creates a DataFrame ``df`` and a view of this DataFrame ``df2``. View means that
+both DataFrames are backed by the same underlying NumPy array. When we look at this with CoW, 
+``df`` has to be aware that ``df2`` also references the same NumPy array. This is not sufficient 
+though. ``df2`` also has to be aware that ``df`` references its NumPy array. If both objects
+are aware that there is another DataFrame references the same NumPy array, we can trigger a copy
+in case one of them is modified, e.g.:
+
+```python
+df.iloc[0, 0] = 100
+```
+
+``df`` is modified inplace here. ``df`` knows that there is another object that references the same data, 
+e.g. it triggers a copy. It is not aware which object references the same data, just that there is
+another object that references its data.
+
+Let's take a look at how we can achieve this. We created an internal class ``BlockValuesRefs`` that
+is used to store this information. There are three different types of operation that create a 
+DataFrame:
+
+- A DataFrame is created from external data, e.g. through ``pd.DataFrame(...)`` or through any
+  I/O method.
+- A new DataFrame is created through a pandas operation that triggers a copy of the original data,
+  e.g. ``dropna`` creates a copy in most cases.
+- A new DataFrames is created through a pandas operation that __does not__ trigger a copy of the
+  original data, e.g. ``df2 = df.reset_index()``.
+
+The first two cases are simple. When the DataFrame is created, the NumPy arrays that back it are
+connected to a fresh ``BlockValuesRefs`` object. This object creates a ``weakref`` that points
+to the Block that wraps the NumPy array and stores this reference internally.
+
+> A [weakref](https://docs.python.org/3/library/weakref.html) creates a reference to any Python
+> object. It does not keep this object alive when it would normally go out of scope.
+> ```python
+> import weakref
+> 
+> class Dummy:
+>     def __init__(self, a):
+>         self.a = a
+> 
+> In[1]: obj = Dummy(1)
+> In[2]: ref = weakref.ref(obj)
+> In[3]: ref()
+> Out[3]: <__main__.Dummy object at 0x108187d60>
+> In[4]: obj = Dummy(2)
+> ```
+> 
+> This example creates a Dummy object and a weak reference to this object. Afterward, we assign another
+> object to the same variable, e.g. the initial object goes out of scope. The weak reference
+> does not interfere with this process. If you resolve the weak reference, it will point to ``None``
+> instead of the original object.
+> 
+> ```python
+> In[5]: ref()
+> Out[5]: None
+> ```
+
+This was the easy case. We know that no other pandas object shares the same NumPy array, so we can
+simply instantiate a new reference tracking object. The third case is more complicated. Since the
+new object views the same data as the original object, we have to account for this. These operations
+will create a new ``Block`` that references the same NumPy array as the original pandas object.
+Additionally, we take the original ``BlockValuesRefs`` object and add a weak reference to our new
+``Block``.
+
+TODO: image
+
+Our ``BlockValuesRefs`` now points to the Block that backs the initial ``df`` and the newly created
+DataFrame ``df2``. If one of these DataFrames is now modified, we can evaluate all weak references
+that our reference tracking object stores. If one object is garbage collected, the reference will
+evaluate to ``None``, which is a semi-automatic update of our references. If at least 2 of them 
+evaluate to anything else than ``None``, we are aware that another DataFrame references the same 
+data as we do. This enables us to trigger a copy when appropriate. 
+
+
 
 
 
