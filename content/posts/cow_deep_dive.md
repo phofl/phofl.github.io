@@ -172,7 +172,7 @@ to the Block that wraps the NumPy array and stores this reference internally.
 > Out[5]: None
 > ```
 
-This was the easy case. We know that no other pandas object shares the same NumPy array, so we can
+These are the easy scenarios. We know that no other pandas object shares the same NumPy array, so we can
 simply instantiate a new reference tracking object. The third case is more complicated. Since the
 new object views the same data as the original object, we have to account for this. These operations
 will create a new ``Block`` that references the same NumPy array as the original pandas object.
@@ -188,12 +188,46 @@ evaluate to ``None``, which is a semi-automatic update of our references. If at 
 evaluate to anything else than ``None``, we are aware that another DataFrame references the same 
 data as we do. This enables us to trigger a copy when appropriate. 
 
+Summarizing, in our above example
 
+```python
+df.iloc[0, 0] = 100
+```
 
+would trigger a copy. Copy in this context refers to copying the underlying NumPy array not the
+actual DataFrame. ``df2`` won't get modified with CoW enabled. We added some optimizations to only
+copy what is strictly necessary. Let's assume the following huge DataFrame:
 
+```
+df = pd.DataFrame(np.random.randint(1, 100, (1_000_000, 100)))
+df2 = df[:]
+```
 
+Our DataFrame has 100 columns with each 1 million rows. Copying all of them when only modifying
+the first cell would be a huge performance bottleneck.
 
+```python
+df.iloc[0, 0] = 100
+```
 
+This operation shouldn't trigger a copy of all columns. We can achieve this through a technique
+we call _splitting_. Before modifying the data, we create a view of columns 2 to 100 and use
+this view to represent these columns. Afterward, we can copy the first column only and set 100 into
+the first row of this column. Consequently, our DataFrame is now backed by 2 NumPy arrays. The first
+array backs the first column only, while the second array stores the data of the other columns. This
+array still points to the original data in memory. 
+
+TODO: picture
+
+This technique has some drawbacks though. We only need columns 2-100 from our initial NumPy array.
+But since the new array is a view, we keep the whole original array alive, which takes up a bit
+more memory than needed. The impact of this behavior depends on how many columns you'll end up 
+replacing. If you replace a value in every second column, we will keep much more memory alive than
+necessary.
+
+```python
+df.iloc[0, slice(0, 100, 2)] = 100
+```
 
 
 # How to adapt your code
