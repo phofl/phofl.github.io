@@ -16,7 +16,7 @@ the pandas queries that were used for the benchmarks. We will look at the ``tpch
 the [Polars repository](https://github.com/pola-rs/tpch) with ``scale_1`` including I/O time. 
 The results are quite interesting.
 
-Initially, I tried to do this 2 months ago, but all the Polars queries were broken back then because
+Initially, I tried to do this 3 months ago, but all the Polars queries were broken back then because
 of API changes. They have been fixed since then. We will use the pandas nightly builds because some 
 optimizations for Copy-on-Write and the Pyarrow ``dtype_backend`` were added after 2.0 was released.
 The next pandas release is scheduled for August. I used Polars in version 0.17.15.
@@ -35,7 +35,9 @@ I ran the benchmarks "as is" as a first step to get the status-quo.
 ![](../images/pandas_benchmark/baseline.png)
 
 It's relatively easy to see that Polars is between 4-10 times faster than pandas. After getting 
-these results I decided to look at the queries that were used for pandas.
+these results I decided to look at the queries that were used for pandas. A couple of relatively
+straightforward optimizations will close the gap. These have other benefits, like reduced memory 
+usage, as well.
 
 Side note: Number 8 is broken, so no result there.
 
@@ -81,7 +83,8 @@ Let's look at the results:
 ![](../images/pandas_benchmark/first_optimization.png)
 
 The pandas queries got a lot faster through a couple of small modifications. The difference is still
-bigger than I'd like, but this was a good start.
+bigger than I'd like, but this was a good start. Additionally, this optimization will reduce the
+memory footprint of your program signficantly.
 
 ## Further optimizations - leveraging Arrow
 
@@ -110,8 +113,10 @@ Let's look at what this means performance-wise.
 ![](../images/pandas_benchmark/second_optimization.png)
 
 This looks quite good now. We were able to bring a bunch of queries a lot closer
-to Polars performance. One of them is even faster than the Polars version! There is one relatively 
-straightforward optimization left without rewriting the queries completely.
+to Polars performance. One of them is even faster than the Polars version! Similar to the first
+optimization, this will reduce the memory footprint significantly, since rows violating the
+filter won't be loaded into memory at all. There is one relatively 
+straightforward optimization left without rewriting the queries completely. 
 
 ## Improving ``merge`` performance
 
@@ -156,4 +161,6 @@ queries that we plan to address in the future.
 The ``scale_10`` queries are also drastically faster compared to the previous
 version.
 
-Thanks for reading. Please reach out with any comments or feedback.
+Thanks for reading. Please reach out with any comments or feedback. I wrote a more general post about
+[improving performance in pandas with PyArrow](https://towardsdatascience.com/utilizing-pyarrow-to-improve-pandas-and-dask-workflows-2891d3d96d2b) 
+as well.
