@@ -20,11 +20,12 @@ impressive!
 We will look at the ``tpch`` benchmarks from
 the [Polars repository](https://github.com/pola-rs/tpch) with ``scale_1`` including I/O time. 
 
-Initially, I tried to do this 3 months ago, but all the Polars queries were broken back then because
-of API changes. They have been fixed since then. We will use the pandas nightly builds because some 
-optimizations for Copy-on-Write and the Pyarrow ``dtype_backend`` were added after 2.0 was released.
-The next pandas release is scheduled for August. I used Polars in version 0.17.15.
-The colors are consistent with what Polars uses for their benchmarks.
+Fair warning: I had to try this a couple of times since the API changed. You can switch to version 
+0.17.15, if you encounter problems, that's what I used. Additionally, I am using the current 
+development version of pandas because some optimizations for Copy-on-Write and the 
+Pyarrow ``dtype_backend`` were added after 2.0 was released. The development version was also used 
+to create the baseline plots, so all performance gains shown in here can be attributed to the 
+refactoring steps. You can use this version starting from August at the latest!
 
 I came away with one main takeaway:
 
@@ -93,7 +94,7 @@ Let's look at the results:
 ![](../images/pandas_benchmark/first_optimization.png)
 
 The pandas queries got a lot faster through a couple of small modifications, e.g. we can see 
-performance improvements by factor 2 and more. Since this avoids loading unnecessary columns 
+performance improvements by a factor of 2 and more. Since this avoids loading unnecessary columns 
 completely, we reduced the memory footprint of our program significantly.
 
 ## Further optimizations - leveraging Arrow
@@ -159,7 +160,9 @@ into it right now how we can improve performance here.
 
 ## Summary
 
-All in all these optimizations took me around 1.5-2 hours. A relatively small time investment where most
+All in all these optimizations took me around 1.5-2 hours. Your mileage might vary, but I don't 
+think that it will take you much longer, since most of the optimizations are very straightforward. 
+A relatively small time investment where most
 of the time was spent on reorganizing the initial queries. You can find the PR that modifies the 
 benchmarks [here](TODO: Add PR link). Polars has a query optimization layer, so it does some of
 these things automatically, but this is not a guarantee that you'll end up with efficient code. 
