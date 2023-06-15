@@ -1,6 +1,6 @@
 ---
 title: Benchmarking pandas against Polars from a pandas PoV
-date: 2023-06-13
+date: 2023-06-15
 slug: pandas-benchmarks
 tags: pandas
 ---

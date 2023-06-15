@@ -1,6 +1,6 @@
 ---
 title: Utilizing PyArrow to improve pandas and Dask workflows
-date: 2023-04-25
+date: 2023-06-05
 slug: pyarrow-pandas-dask
 tags: pandas, dask
 ---
