@@ -115,7 +115,7 @@ into it right now how we can improve performance here.&lt;/p&gt;
 think that it will take you much longer, since most of the optimizations are very straightforward. 
 A relatively small time investment where most
 of the time was spent on reorganizing the initial queries. You can find the PR that modifies the 
-benchmarks &lt;a href="TODO: Add PR link"&gt;here&lt;/a&gt;. Polars has a query optimization layer, so it does some of
+benchmarks &lt;a href="https://github.com/pola-rs/tpch/pull/56"&gt;here&lt;/a&gt;. Polars has a query optimization layer, so it does some of
 these things automatically, but this is not a guarantee that you'll end up with efficient code. &lt;/p&gt;
 &lt;p&gt;We saw that writing more efficient pandas code isn't that hard and can give you a huge performance 
 improvement. Looking at these queries helped us as well, since we were able to identify a couple of 

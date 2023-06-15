@@ -164,7 +164,7 @@ All in all these optimizations took me around 1.5-2 hours. Your mileage might va
 think that it will take you much longer, since most of the optimizations are very straightforward. 
 A relatively small time investment where most
 of the time was spent on reorganizing the initial queries. You can find the PR that modifies the 
-benchmarks [here](TODO: Add PR link). Polars has a query optimization layer, so it does some of
+benchmarks [here](https://github.com/pola-rs/tpch/pull/56). Polars has a query optimization layer, so it does some of
 these things automatically, but this is not a guarantee that you'll end up with efficient code. 
 
 We saw that writing more efficient pandas code isn't that hard and can give you a huge performance 
