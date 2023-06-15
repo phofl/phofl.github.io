@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<rss version="2.0"><channel><title>Patrick Hoefler</title><link>https://phofl.github.io/</link><description></description><lastBuildDate>Tue, 25 Apr 2023 00:00:00 +0200</lastBuildDate><item><title>Utilizing PyArrow to improve pandas and Dask workflows</title><link>https://phofl.github.io/pyarrow-pandas-dask.html</link><description>&lt;p&gt;&lt;em&gt;Get the most out of PyArrow support in pandas and Dask right now&lt;/em&gt;&lt;/p&gt;
+<rss version="2.0"><channel><title>Patrick Hoefler</title><link>https://phofl.github.io/</link><description></description><lastBuildDate>Tue, 13 Jun 2023 00:00:00 +0200</lastBuildDate><item><title>Benchmarking pandas against Polars from a pandas PoV</title><link>https://phofl.github.io/pandas-benchmarks.html</link><description>&lt;p&gt;&lt;em&gt;Or: How writing efficient pandas code matters&lt;/em&gt;&lt;/p&gt;
+&lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
+&lt;p&gt;I've regularly seen benchmarks that show how much faster Polars is compared to pandas. 
+The fact that Polars is faster than pandas is not too surprising since it is multithreaded while 
+pandas is mostly single-core. The big difference surprises me though. That's …&lt;/p&gt;</description><dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Patrick Hoefler</dc:creator><pubDate>Tue, 13 Jun 2023 00:00:00 +0200</pubDate><guid isPermaLink="false">tag:phofl.github.io,2023-06-13:/pandas-benchmarks.html</guid><category>posts</category><category>pandas</category></item><item><title>Utilizing PyArrow to improve pandas and Dask workflows</title><link>https://phofl.github.io/pyarrow-pandas-dask.html</link><description>&lt;p&gt;&lt;em&gt;Get the most out of PyArrow support in pandas and Dask right now&lt;/em&gt;&lt;/p&gt;
 &lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
 &lt;p&gt;This post investigates where we can use PyArrow to improve our pandas and Dask workflows right now.
 General support for PyArrow dtypes was added with pandas 2.0 to &lt;a href="https://pandas.pydata.org"&gt;pandas&lt;/a&gt; 
