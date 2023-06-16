@@ -131,6 +131,9 @@ There is one relatively straightforward optimization left without rewriting the 
 
 ## Improving ``merge`` performance
 
+The following trick requires knowledge about your data and can’t be applied in a general way. This 
+is more of a general idea that isn’t really compliant with tpch rules, but nice to see nevertheless.
+
 This technique is a bit tricky. I stumbled upon this a couple of years ago when I had a performance
 issue at my previous job. In these scenarios, ``merge`` is basically used as a filter that restricts
 one of both DataFrames quite heavily. This is relatively slow when using merge, because pandas

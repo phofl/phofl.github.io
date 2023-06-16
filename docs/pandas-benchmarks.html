@@ -498,6 +498,8 @@ used in the query itself. Similar to the first optimization, this will reduce th
 significantly, since rows violating the filter won't be loaded into memory at all.</p>
 <p>There is one relatively straightforward optimization left without rewriting the queries completely.</p>
 <h2 id="improving-merge-performance">Improving <code>merge</code> performance</h2>
+<p>The following trick requires knowledge about your data and can’t be applied in a general way. This 
+is more of a general idea that isn’t really compliant with tpch rules, but nice to see nevertheless.</p>
 <p>This technique is a bit tricky. I stumbled upon this a couple of years ago when I had a performance
 issue at my previous job. In these scenarios, <code>merge</code> is basically used as a filter that restricts
 one of both DataFrames quite heavily. This is relatively slow when using merge, because pandas
