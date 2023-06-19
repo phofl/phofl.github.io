@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom"><title>Patrick Hoefler</title><link href="https://phofl.github.io/" rel="alternate"></link><link href="https://phofl.github.io/feeds/all.atom.xml" rel="self"></link><id>https://phofl.github.io/</id><updated>2023-06-15T00:00:00+02:00</updated><entry><title>Benchmarking pandas against Polars from a pandas PoV</title><link href="https://phofl.github.io/pandas-benchmarks.html" rel="alternate"></link><published>2023-06-15T00:00:00+02:00</published><updated>2023-06-15T00:00:00+02:00</updated><author><name>Patrick Hoefler</name></author><id>tag:phofl.github.io,2023-06-15:/pandas-benchmarks.html</id><summary type="html">&lt;p&gt;&lt;em&gt;Or: How writing efficient pandas code matters&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img alt="" src="../images/pandas_benchmark/title.png"&gt;&lt;/p&gt;
 &lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
 &lt;p&gt;I've regularly seen benchmarks that show how much faster Polars is compared to pandas. 
 The fact that Polars is faster than pandas is not too surprising since it is multithreaded while 
 pandas is mostly single-core. The big difference surprises me though. That's …&lt;/p&gt;</summary><content type="html">&lt;p&gt;&lt;em&gt;Or: How writing efficient pandas code matters&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img alt="" src="../images/pandas_benchmark/title.png"&gt;&lt;/p&gt;
 &lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
 &lt;p&gt;I've regularly seen benchmarks that show how much faster Polars is compared to pandas. 
 The fact that Polars is faster than pandas is not too surprising since it is multithreaded while 

@@ -7,6 +7,8 @@ tags: pandas
 
 _Or: How writing efficient pandas code matters_
 
+![](../images/pandas_benchmark/title.png)
+
 ## Introduction
 I've regularly seen benchmarks that show how much faster Polars is compared to pandas. 
 The fact that Polars is faster than pandas is not too surprising since it is multithreaded while 

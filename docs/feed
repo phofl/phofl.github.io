@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <rss version="2.0"><channel><title>Patrick Hoefler</title><link>https://phofl.github.io/</link><description></description><lastBuildDate>Thu, 15 Jun 2023 00:00:00 +0200</lastBuildDate><item><title>Benchmarking pandas against Polars from a pandas PoV</title><link>https://phofl.github.io/pandas-benchmarks.html</link><description>&lt;p&gt;&lt;em&gt;Or: How writing efficient pandas code matters&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img alt="" src="../images/pandas_benchmark/title.png"&gt;&lt;/p&gt;
 &lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
 &lt;p&gt;I've regularly seen benchmarks that show how much faster Polars is compared to pandas. 
 The fact that Polars is faster than pandas is not too surprising since it is multithreaded while 
