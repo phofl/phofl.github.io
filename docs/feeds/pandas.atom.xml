@@ -127,11 +127,13 @@ queries run faster than the Polars version!&lt;/p&gt;
 &lt;p&gt;Thanks for reading. Please reach out with any comments or feedback. I wrote a more general post about
 &lt;a href="https://towardsdatascience.com/utilizing-pyarrow-to-improve-pandas-and-dask-workflows-2891d3d96d2b"&gt;improving performance in pandas with PyArrow&lt;/a&gt; 
 as well.&lt;/p&gt;</content><category term="posts"></category><category term="pandas"></category></entry><entry><title>Utilizing PyArrow to improve pandas and Dask workflows</title><link href="https://phofl.github.io/pyarrow-pandas-dask.html" rel="alternate"></link><published>2023-06-05T00:00:00+02:00</published><updated>2023-06-05T00:00:00+02:00</updated><author><name>Patrick Hoefler</name></author><id>tag:phofl.github.io,2023-06-05:/pyarrow-pandas-dask.html</id><summary type="html">&lt;p&gt;&lt;em&gt;Get the most out of PyArrow support in pandas and Dask right now&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img alt="" src="../images/arrow_backend/title.svg"&gt;&lt;/p&gt;
 &lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
 &lt;p&gt;This post investigates where we can use PyArrow to improve our pandas and Dask workflows right now.
 General support for PyArrow dtypes was added with pandas 2.0 to &lt;a href="https://pandas.pydata.org"&gt;pandas&lt;/a&gt; 
 and &lt;a href="https://www.dask.org?utm_source=phofl&amp;amp;utm_medium=pyarrow-in-pandas-and-dask"&gt;Dask&lt;/a&gt;. This solves a
 bunch …&lt;/p&gt;</summary><content type="html">&lt;p&gt;&lt;em&gt;Get the most out of PyArrow support in pandas and Dask right now&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img alt="" src="../images/arrow_backend/title.svg"&gt;&lt;/p&gt;
 &lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
 &lt;p&gt;This post investigates where we can use PyArrow to improve our pandas and Dask workflows right now.
 General support for PyArrow dtypes was added with pandas 2.0 to &lt;a href="https://pandas.pydata.org"&gt;pandas&lt;/a&gt; 
@@ -467,12 +469,10 @@ onto PyArrow makes a lot of sense (e.g. Decimals, structured data, ...). You can
 proposal &lt;a href="https://github.com/pandas-dev/pandas/pull/52711"&gt;here&lt;/a&gt;.&lt;/p&gt;
 &lt;p&gt;Thank you for reading. Feel free to reach out to share your thoughts and feedback 
 about PyArrow support in both libraries.&lt;/p&gt;</content><category term="posts"></category><category term="pandas"></category><category term="dask"></category></entry><entry><title>Welcoming pandas 2.0</title><link href="https://phofl.github.io/pandas-20.html" rel="alternate"></link><published>2023-03-23T00:00:00+01:00</published><updated>2023-03-23T00:00:00+01:00</updated><author><name>Patrick Hoefler</name></author><id>tag:phofl.github.io,2023-03-23:/pandas-20.html</id><summary type="html">&lt;p&gt;&lt;em&gt;How the API is changing and how to leverage new functionalities&lt;/em&gt;&lt;/p&gt;
-&lt;p&gt;&lt;img alt="" src="../images/arrow_backend/title.svg"&gt;&lt;/p&gt;
 &lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
 &lt;p&gt;After 3 years of development, the second pandas 2.0 release candidate was released on the 16th of 
 March. There are many new features in pandas 2.0, including improved extension array
 support, pyarrow support for DataFrames and …&lt;/p&gt;</summary><content type="html">&lt;p&gt;&lt;em&gt;How the API is changing and how to leverage new functionalities&lt;/em&gt;&lt;/p&gt;
-&lt;p&gt;&lt;img alt="" src="../images/arrow_backend/title.svg"&gt;&lt;/p&gt;
 &lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
 &lt;p&gt;After 3 years of development, the second pandas 2.0 release candidate was released on the 16th of 
 March. There are many new features in pandas 2.0, including improved extension array

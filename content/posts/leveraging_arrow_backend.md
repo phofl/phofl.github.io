@@ -7,6 +7,8 @@ tags: pandas, dask
 
 _Get the most out of PyArrow support in pandas and Dask right now_
 
+![](../images/arrow_backend/title.svg)
+
 ## Introduction
 
 This post investigates where we can use PyArrow to improve our pandas and Dask workflows right now.
