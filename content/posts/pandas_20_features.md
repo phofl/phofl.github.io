@@ -7,6 +7,8 @@ tags: pandas
 
 _How the API is changing and how to leverage new functionalities_
 
+![](../images/arrow_backend/title.svg)
+
 ## Introduction
 
 After 3 years of development, the second pandas 2.0 release candidate was released on the 16th of 

@@ -467,10 +467,12 @@ onto PyArrow makes a lot of sense (e.g. Decimals, structured data, ...). You can
 proposal &lt;a href="https://github.com/pandas-dev/pandas/pull/52711"&gt;here&lt;/a&gt;.&lt;/p&gt;
 &lt;p&gt;Thank you for reading. Feel free to reach out to share your thoughts and feedback 
 about PyArrow support in both libraries.&lt;/p&gt;</content><category term="posts"></category><category term="pandas"></category><category term="dask"></category></entry><entry><title>Welcoming pandas 2.0</title><link href="https://phofl.github.io/pandas-20.html" rel="alternate"></link><published>2023-03-23T00:00:00+01:00</published><updated>2023-03-23T00:00:00+01:00</updated><author><name>Patrick Hoefler</name></author><id>tag:phofl.github.io,2023-03-23:/pandas-20.html</id><summary type="html">&lt;p&gt;&lt;em&gt;How the API is changing and how to leverage new functionalities&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img alt="" src="../images/arrow_backend/title.svg"&gt;&lt;/p&gt;
 &lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
 &lt;p&gt;After 3 years of development, the second pandas 2.0 release candidate was released on the 16th of 
 March. There are many new features in pandas 2.0, including improved extension array
 support, pyarrow support for DataFrames and …&lt;/p&gt;</summary><content type="html">&lt;p&gt;&lt;em&gt;How the API is changing and how to leverage new functionalities&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img alt="" src="../images/arrow_backend/title.svg"&gt;&lt;/p&gt;
 &lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
 &lt;p&gt;After 3 years of development, the second pandas 2.0 release candidate was released on the 16th of 
 March. There are many new features in pandas 2.0, including improved extension array
