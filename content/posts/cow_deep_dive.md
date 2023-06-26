@@ -14,9 +14,12 @@ mode. The feature is expected to become the default in pandas 3.0, which as of n
 April 2024. There won't be a legacy or non-CoW mode.
 
 This post will explain how Copy-on-Write works internally to help users understand what's going on
-and afterward show how to use it effectively. This will include examples on how to leverage the
+and show how to use it effectively. This will include examples on how to leverage the
 mechanism to get the most efficient performance and also show a couple of anti-patterns that will
 result in unnecessary bottlenecks.
+
+I wrote a post that explains the data structure of pandas which will help understand some 
+terminology that is necessary for CoW TODO.
 
 I am part of the pandas core team and was heavily involved in implementing and improving CoW so far. 
 I've recently joined [Coiled](https://www.coiled.io) where I am working on Dask, including improving
@@ -66,11 +69,11 @@ gotchas come down to Copy and View rules in NumPy, which is what pandas uses und
 users have to be aware of these rules and how they apply to pandas DataFrames to understand why
 similar code-patterns produce different results. 
 
-CoW cleans up all these inconsistencies. Users can only update one object at a time when CoW is
+__CoW cleans up all these inconsistencies__. Users can only update one object at a time when CoW is
 enabled, e.g. ``df`` would be unchanged in our first example since only ``grades`` is updated at
 that time and the second example raises a ``ChainedAssignmentError`` instead of doing nothing.
 Generally, it won't be possible to update two objects at once, e.g., every object behaves as it
-created a deep copy of the previous object.
+is a copy of the previous object.
 
 There are many more of these cases, but going through all of them is not in scope here.
 
@@ -81,30 +84,14 @@ users. This is the main part of this post and is fairly technical.
 
 Copy-on-Write promises that __any DataFrame or Series derived from another in__ 
 __any way always behaves as a copy__. This means that it is not possible to modify more than one
-object with a single operation, e.g. our first example above would only modify ``grades``. 
-
-> Let's look at how a DataFrame is constructed. We assume that our DataFrame is backed by NumPy arrays,
-> but the concept translates to DataFrames backed by PyArrow arrays. Every column of a DataFrame is
-> backed by a NumPy array. One NumPy array with multiple columns can back multiple columns in a
-> DataFrame. The arrays are wrapped by an object that is called ``Block``, but this is an 
-> implementation detail and not relevant for CoW.
-> 
-> ![](../images/deep_dive_cow/df_representation.png)
-> 
-> Our DataFrame has 3 columns, 2 of them have ``int64`` dtype and are stored in a single NumPy
-> array while the third one has ``float64`` dtype and is a separate NumPy array. Columns that have the
-> exact same dtype, e.g. can be stored in a NumPy array, are generally represented as a single array.
-> 
-> A pandas object is called a view, when an operation creates a new __pandas__ object that 
-> references the same underlying NumPy arrays. Modifying said new object without CoW will generally
-> also modify the previous object since the NumPy arrays are updated inplace.
+object with a single operation, e.g. our first example above would only modify ``grades``.
 
 We could guarantee the CoW promise through copying the underlying NumPy arrays in every operation,
 which would avoid views in pandas altogether. This would guarantee CoW semantics but also incur a
-huge performance penalty, so this wasn't an option for us. 
+huge performance penalty, so this wasn't an option. 
 
 We will now dive into the mechanism that ensures that no two objects are updated with a single
-operation __and__ that your data isn't unnecessarily copied.
+operation __and__ that our data isn't unnecessarily copied.
 
 We have to know exactly when to trigger a copy to achieve this objective. This means that we have
 to keep track of whether one NumPy array is referenced by two DataFrames (generally, we have to be
@@ -129,7 +116,7 @@ df.iloc[0, 0] = 100
 
 ``df`` is modified inplace here. ``df`` knows that there is another object that references the same data, 
 e.g. it triggers a copy. It is not aware which object references the same data, just that there is
-another object that references its data.
+another object out there.
 
 Let's take a look at how we can achieve this. We created an internal class ``BlockValuesRefs`` that
 is used to store this information. There are three different types of operation that create a 
@@ -144,7 +131,7 @@ DataFrame:
 
 The first two cases are simple. When the DataFrame is created, the NumPy arrays that back it are
 connected to a fresh ``BlockValuesRefs`` object. This object creates a ``weakref`` that points
-to the Block that wraps the NumPy array and stores this reference internally.
+to the ``Block`` that wraps the NumPy array and stores this reference internally.
 
 > A [weakref](https://docs.python.org/3/library/weakref.html) creates a reference to any Python
 > object. It does not keep this object alive when it would normally go out of scope.
@@ -172,36 +159,76 @@ to the Block that wraps the NumPy array and stores this reference internally.
 > Out[5]: None
 > ```
 
+Let's take a look at how these objects are organized:
+
+![](../images/deep_dive_cow/copy-on-write.svg)
+
+Our example has two columns ``"a"`` and ``"b"`` which both have dtype ``"int64"``. They are backed
+by one Block that holds the data for both columns. The Block holds a hard reference to the refernce
+tracking object, ensuring that it stays alive as long as the Block is not garbage collected. The
+reference tracking object holds a weak reference to the Block. This enables the object to track
+the lifecycle of this block but does not prevent garbage collection. The reference tracking object
+does not hold a weak reference to any other Block.
+
 These are the easy scenarios. We know that no other pandas object shares the same NumPy array, so we can
-simply instantiate a new reference tracking object. The third case is more complicated. Since the
-new object views the same data as the original object, we have to account for this. These operations
-will create a new ``Block`` that references the same NumPy array as the original pandas object.
-Additionally, we take the original ``BlockValuesRefs`` object and add a weak reference to our new
-``Block``.
+simply instantiate a new reference tracking object. 
 
-TODO: image
-
-Our ``BlockValuesRefs`` now points to the Block that backs the initial ``df`` and the newly created
-DataFrame ``df2``. If one of these DataFrames is now modified, we can evaluate all weak references
-that our reference tracking object stores. If one object is garbage collected, the reference will
-evaluate to ``None``, which is a semi-automatic update of our references. If at least 2 of them 
-evaluate to anything else than ``None``, we are aware that another DataFrame references the same 
-data as we do. This enables us to trigger a copy when appropriate. 
-
-Summarizing, in our above example
+The third case is more complicated since the new object views the same data as the original object.
+This means that both objects point to the same memory. Our operation will create a new Block that
+references the same NumPy array. We now have to register this new Block in our reference tracking
+mechanism. We will register our new Block with the reference tracking object that is connected to
+the old object.
 
 ```python
-df.iloc[0, 0] = 100
+df2 = df.reset_index(drop=True)
 ```
 
-would trigger a copy. Copy in this context refers to copying the underlying NumPy array not the
-actual DataFrame. ``df2`` won't get modified with CoW enabled. We added some optimizations to only
-copy what is strictly necessary. Let's assume the following huge DataFrame:
+![](../images/deep_dive_cow/copy-on-write_view.svg)
 
+Our ``BlockValuesRefs`` now points to the Block that backs the initial ``df`` and the newly created
+Block that backs ``df2``. This ensures that we are always aware about all DataFrames that point to
+the same memory. 
+
+We can now ask the reference tracking object how many Blocks that point to the same NumPy array
+are alive. The reference tracking object evaluates the weak references and tells us that more
+than one object references the same data. This triggers a copy internally if one of them is 
+modified inplace. 
+
+```python
+df2.iloc[0, 0] = 100
 ```
-df = pd.DataFrame(np.random.randint(1, 100, (1_000_000, 100)))
-df2 = df[:]
+
+The Block in ``df2`` is copied through a deep copy, creating a new Block that has it's own
+reference tracking object. The original block that the old reference tracking object points to is
+garbage collected.
+
+![](../images/deep_dive_cow/copy-on-write_copy.svg)
+
+Let's look at a different scenario.
+
+```python
+df = None
+df2.iloc[0, 0] = 100
 ```
+
+``df`` is invalidated before we modify ``df2``. Consequently, the weakref of our reference tracking
+object that points to the Block that backed ``df`` evaluates to ``None``, enabling us to modify 
+``df2`` without triggering a copy.
+
+![](../images/deep_dive_cow/copy-on-write_invalidate.svg)
+
+Our reference tracking object points to only one DataFrame which enables us to do the operation
+inplace without triggering a copy.
+
+``reset_index`` above creates a view. The mechanism is a bit simpler if we have an operation that 
+triggers a copy internally.
+
+```python
+df2 = df.copy()
+```
+ This immediately instantiates a new reference tracking object for the new DataFrame ``df2``.
+
+![](../images/deep_dive_cow/copy-on-write_copy_immediately.svg)
 
 Our DataFrame has 100 columns with each 1 million rows. Copying all of them when only modifying
 the first cell would be a huge performance bottleneck.
