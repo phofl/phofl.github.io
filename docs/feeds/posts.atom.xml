@@ -1,5 +1,102 @@
 <?xml version="1.0" encoding="utf-8"?>
-<feed xmlns="http://www.w3.org/2005/Atom"><title>Patrick Hoefler - posts</title><link href="https://phofl.github.io/" rel="alternate"></link><link href="https://phofl.github.io/feeds/posts.atom.xml" rel="self"></link><id>https://phofl.github.io/</id><updated>2023-06-15T00:00:00+02:00</updated><entry><title>Benchmarking pandas against Polars from a pandas PoV</title><link href="https://phofl.github.io/pandas-benchmarks.html" rel="alternate"></link><published>2023-06-15T00:00:00+02:00</published><updated>2023-06-15T00:00:00+02:00</updated><author><name>Patrick Hoefler</name></author><id>tag:phofl.github.io,2023-06-15:/pandas-benchmarks.html</id><summary type="html">&lt;p&gt;&lt;em&gt;Or: How writing efficient pandas code matters&lt;/em&gt;&lt;/p&gt;
+<feed xmlns="http://www.w3.org/2005/Atom"><title>Patrick Hoefler - posts</title><link href="https://phofl.github.io/" rel="alternate"></link><link href="https://phofl.github.io/feeds/posts.atom.xml" rel="self"></link><id>https://phofl.github.io/</id><updated>2023-06-23T00:00:00+02:00</updated><entry><title>Dask performance benchmarking put to the test: Fixing a pandas bottleneck</title><link href="https://phofl.github.io/dask-performance-benchmarking-put-to-the-test-fixing-a-pandas-bottleneck.html" rel="alternate"></link><published>2023-06-23T00:00:00+02:00</published><updated>2023-06-23T00:00:00+02:00</updated><author><name>[Patrick Hoefler</name></author><id>tag:phofl.github.io,2023-06-23:/dask-performance-benchmarking-put-to-the-test-fixing-a-pandas-bottleneck.html</id><summary type="html">&lt;p&gt;&lt;strong&gt;Getting notified of a significant performance regression the day before release sucks, but quickly identifying and resolving it feels great!&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;We were getting set up at our booth at JupyterCon 2023 when we received a notification:
+An engineer on our team had spotted a significant performance regression in Dask.
+With …&lt;/p&gt;</summary><content type="html">&lt;p&gt;&lt;strong&gt;Getting notified of a significant performance regression the day before release sucks, but quickly identifying and resolving it feels great!&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;We were getting set up at our booth at JupyterCon 2023 when we received a notification:
+An engineer on our team had spotted a significant performance regression in Dask.
+With an impact of 40% increased runtime, it blocked the release planned for the next day!&lt;/p&gt;
+&lt;p&gt;&lt;img alt="" src="../images/dask_upstream_performance_tests/performance-regression.png"&gt;&lt;/p&gt;
+&lt;p&gt;Luckily, the other attendees still focused on coffee and breakfast, so we commandeered an abandoned table next to our booth and got to work.&lt;/p&gt;
+&lt;h2 id="performance-testing-at-coiled"&gt;Performance testing at Coiled&lt;/h2&gt;
+&lt;p&gt;The performance problem &lt;a href="https://github.com/coiled/benchmarks/issues/840"&gt;had been flagged&lt;/a&gt; by the automated performance testing for Dask that we developed at &lt;a href="https://www.coiled.io/?utm_source=phofl&amp;amp;utm_medium=dask-benchmark-pandas-bottleneck"&gt;Coiled&lt;/a&gt;.
+If you have not read Guido Imperiale's &lt;a href="https://blog.coiled.io/blog/performance-testing.html"&gt;blog post&lt;/a&gt; on our approach to performance testing, here is a summary:
+With &lt;a href="https://github.com/coiled/benchmarks"&gt;&lt;code&gt;coiled/benchmarks&lt;/code&gt;&lt;/a&gt;, we created a benchmark suite that contains a variety of common workloads and operations with Dask, including standardized ones like the &lt;a href="https://github.com/h2oai/db-benchmark"&gt;&lt;code&gt;h2oai/db-benchmark&lt;/code&gt;&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;It also contains tooling that allows us to do two things:
+* Automatically &lt;a href="https://blog.coiled.io/blog/performance-testing.html#nightly-tests"&gt;detect performance regressions&lt;/a&gt; in Dask and raise them as issues.
+* &lt;a href="https://blog.coiled.io/blog/performance-testing.html#a-b-tests"&gt;Run A/B tests&lt;/a&gt; to assess the performance impact of different versions of Dask, upstream packages, or cluster configurations.&lt;/p&gt;
+&lt;p&gt;While the former started this journey, the latter will also come in handy soon.  &lt;/p&gt;
+&lt;h2 id="identifying-the-problem"&gt;Identifying the problem&lt;/h2&gt;
+&lt;p&gt;Our automated regression testing had alerted us that &lt;a href="https://github.com/coiled/benchmarks/blob/895a13db09eb3172155e7b1260a5698f2284f5b7/tests/benchmarks/test_h2o.py#L140-L151"&gt;&lt;code&gt;test_h2o.py::test_q8&lt;/code&gt;&lt;/a&gt; had experienced &lt;a href="https://github.com/dask/community/issues/322#issuecomment-1542560550"&gt;a significant increase&lt;/a&gt; in runtime across all data sizes and file formats. 
+From the &lt;a href="https://benchmarks.coiled.io"&gt;historical report&lt;/a&gt; of our benchmarking suite, we could see that &lt;code&gt;dask/dask&lt;/code&gt; and &lt;code&gt;dask/distributed&lt;/code&gt; were unlikely to be the culprit: 
+Nothing had changed on &lt;code&gt;dask/dask&lt;/code&gt; when the performance started to degrade, and there was only one unrelated change on &lt;code&gt;dask/distributed&lt;/code&gt;. 
+That left us with the Coiled platform and upstream packages as possible candidates. &lt;/p&gt;
+&lt;p&gt;After digging deeper into the cluster data, we noticed that &lt;code&gt;pandas&lt;/code&gt; had been upgraded from &lt;code&gt;1.5.3&lt;/code&gt; to &lt;code&gt;2.0.1&lt;/code&gt;. 
+A major upgrade to &lt;code&gt;pandas&lt;/code&gt; at the same time a dataframe-based workload shows degrading performance? That's suspicious! &lt;/p&gt;
+&lt;p&gt;To confirm this suspicion, we ran an A/B test based on the current Dask release (&lt;code&gt;2023.4.1&lt;/code&gt; at the time), testing the impact of the pandas upgrade. 
+&lt;a href="https://github.com/coiled/benchmarks/actions/runs/4946428740"&gt;The results&lt;/a&gt; were clear: The runtime increased significantly with &lt;code&gt;pandas=2.0.1&lt;/code&gt; (sample).&lt;/p&gt;
+&lt;p&gt;&lt;img alt="" src="../images/dask_upstream_performance_tests/ab-test.png"&gt;&lt;/p&gt;
+&lt;p&gt;Having shown that &lt;code&gt;pandas&lt;/code&gt; caused for the performance degradation and that we could reproduce it with the current Dask release, our release process for &lt;code&gt;2023.5.0&lt;/code&gt; &lt;a href="https://github.com/dask/community/issues/322#issuecomment-1543878628"&gt;was cleared&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;To further analyze the problem, we also derived a &lt;a href="https://matthewrocklin.com/minimal-bug-reports.html#minimal-complete-verifiable-examples"&gt;minimal local reproducer&lt;/a&gt; from the original workload:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;from dask.distributed import Client
+
+client = Client()
+uri = &amp;quot;s3://coiled-datasets/h2o-benchmark/N_1e7_K_1e2_parquet/*.parquet&amp;quot;
+ddf = dd.read_parquet(uri, engine=&amp;quot;pyarrow&amp;quot;, storage_options={&amp;quot;anon&amp;quot;: True}).persist()
+wait(ddf)
+
+ddf = ddf[[&amp;quot;id6&amp;quot;, &amp;quot;v1&amp;quot;, &amp;quot;v2&amp;quot;, &amp;quot;v3&amp;quot;]]
+(
+    ddf[~ddf[&amp;quot;v3&amp;quot;].isna()][[&amp;quot;id6&amp;quot;, &amp;quot;v3&amp;quot;]]
+    .groupby(&amp;quot;id6&amp;quot;, dropna=False, observed=True)
+    .apply(
+        lambda x: x.nlargest(2, columns=&amp;quot;v3&amp;quot;),
+        meta={&amp;quot;id6&amp;quot;: &amp;quot;Int64&amp;quot;, &amp;quot;v3&amp;quot;: &amp;quot;float64&amp;quot;},
+    )[[&amp;quot;v3&amp;quot;]]
+).compute()
+&lt;/code&gt;&lt;/pre&gt;
+&lt;h2 id="investigating-the-pandas-performance-degradation"&gt;Investigating the pandas performance degradation&lt;/h2&gt;
+&lt;p&gt;The only user-visible thing that changed between pandas 1.5.3 and pandas 2.0.1 was the default value
+of &lt;code&gt;group_keys&lt;/code&gt; in &lt;code&gt;GroupBy&lt;/code&gt;. Switching to &lt;code&gt;group_keys=False&lt;/code&gt; with version 2.0.1
+got us back to the initial runtime.
+Now that we knew that pandas was to blame for the performance degradation, we had to create a 
+reproducer in plain pandas to help fix the issue.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df = pd.DataFrame(
+    {
+        &amp;quot;foo&amp;quot;: np.random.randint(1, 50_000, (100_000, )), 
+        &amp;quot;bar&amp;quot;: np.random.randint(1, 100_000, (100_000, )),
+    },
+)
+
+df.groupby(
+    &amp;quot;foo&amp;quot;, group_keys=False
+).apply(lambda x: x.nlargest(2, columns=&amp;quot;bar&amp;quot;))
+&lt;/code&gt;&lt;/pre&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;group_keys=False&lt;/code&gt;: approx. 11 seconds&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;group_keys=True&lt;/code&gt;: approx. 15 seconds&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Experimenting a bit showed us that the bottleneck got even worse while increasing the number of 
+groups during the &lt;code&gt;groupby&lt;/code&gt; calculation. We settled on this version which is 30% slower with 
+&lt;code&gt;group_keys=True&lt;/code&gt;, enough to be able to troubleshoot the problem. There was no obvious reason
+why the changed value should bring a significant slowdown.&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;%prun&lt;/code&gt; showed us that the time was almost exclusively spent in a post-processing step that
+combines all groups via &lt;code&gt;concat&lt;/code&gt;.&lt;/p&gt;
+&lt;h2 id="addressing-the-performance-degradation"&gt;Addressing the performance degradation&lt;/h2&gt;
+&lt;p&gt;Let's look at how both cases differ. The new version passes the grouping levels to &lt;code&gt;concat&lt;/code&gt;, which
+are used to construct the resulting Index levels. This shouldn't be that slow though. Investigations
+showed that this runs through a code-path that is very inefficient!&lt;/p&gt;
+&lt;p&gt;Looking closer at the results of &lt;code&gt;%prun&lt;/code&gt; pointed us to one specific loop that took up most of
+the runtime. This loop calculates the &lt;code&gt;codes&lt;/code&gt; for the resulting index based on the provided 
+levels. It's slow, really slow! Every single element provided as &lt;code&gt;keys&lt;/code&gt;, which 
+represent the number of groups, is checked against the whole level, which explains our previous 
+observation that the runtime got worse with an increasing number of groups. You can check out the 
+&lt;a href="https://pandas.pydata.org/pandas-docs/stable/user_guide/merging.html#more-concatenating-with-group-keys"&gt;pandas user guide&lt;/a&gt;
+if you are interested in situations where this is useful. Fortunately, we have a convenient
+advantage in case of &lt;code&gt;groupby&lt;/code&gt;. We know beforehand that every key equals the specific level. 
+We added a fast-path that exploits this knowledge getting the runtime of this step more or less to
+zero.&lt;/p&gt;
+&lt;p&gt;This change resulted in a &lt;a href="https://github.com/pandas-dev/pandas/pull/53195"&gt;small PR&lt;/a&gt; that cut 
+the runtime of &lt;code&gt;group_keys=True&lt;/code&gt; to approximately 11 seconds as well.&lt;/p&gt;
+&lt;h2 id="conclusion"&gt;Conclusion&lt;/h2&gt;
+&lt;p&gt;Now that we made our pandas reproducer run 30% faster, we have to check whether we accomplished our
+initial objective. Re-running the local Dask reproducer should give us an idea about the
+impact on Dask. We got the performance down to 22 seconds as well! Promising news that saved
+our plans for the evening!&lt;/p&gt;
+&lt;p&gt;Unfortunately, we had to wait until pandas 2.0.2 was released to run a proper benchmark.&lt;/p&gt;
+&lt;p&gt;&lt;img alt="" src="../images/dask_upstream_performance_tests/benchmark_after.jpg"&gt;&lt;/p&gt;
+&lt;p&gt;This looks great! Our small pandas change translated to our Dask query and got performance back
+to the previous level!&lt;/p&gt;</content><category term="posts"></category><category term="dask"></category><category term="performance"></category><category term="coiled"></category></entry><entry><title>Benchmarking pandas against Polars from a pandas PoV</title><link href="https://phofl.github.io/pandas-benchmarks.html" rel="alternate"></link><published>2023-06-15T00:00:00+02:00</published><updated>2023-06-15T00:00:00+02:00</updated><author><name>Patrick Hoefler</name></author><id>tag:phofl.github.io,2023-06-15:/pandas-benchmarks.html</id><summary type="html">&lt;p&gt;&lt;em&gt;Or: How writing efficient pandas code matters&lt;/em&gt;&lt;/p&gt;
 &lt;p&gt;&lt;img alt="" src="../images/pandas_benchmark/title.png"&gt;&lt;/p&gt;
 &lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
 &lt;p&gt;I've regularly seen benchmarks that show how much faster Polars is compared to pandas. 
