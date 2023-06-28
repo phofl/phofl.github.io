@@ -1,9 +1,9 @@
 ---
 title: Dask performance benchmarking put to the test: Fixing a pandas bottleneck
 blogpost: true
-date: 2023-06-23
+date: 2023-06-28
 tags: dask, performance, coiled
-authors: [Patrick Hoefler, Hendrik Makait]
+authors: Patrick Hoefler, Hendrik Makait
 ---
 
 **Getting notified of a significant performance regression the day before release sucks, but quickly identifying and resolving it feels great!**
