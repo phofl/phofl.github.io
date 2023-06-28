@@ -226,7 +226,7 @@ triggers a copy internally.
 ```python
 df2 = df.copy()
 ```
- This immediately instantiates a new reference tracking object for the new DataFrame ``df2``.
+ This immediately instantiates a new reference tracking object for our DataFrame ``df2``.
 
 ![](../images/deep_dive_cow/copy-on-write_copy_immediately.svg)
 
