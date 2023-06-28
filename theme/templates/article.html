@@ -29,6 +29,12 @@
                     <a href="{{ SITEURL }}/{{ tag.url }}" class="tag">{{ tag }}</a>
                 {% endfor %}
             </div>
+            <div>
+                <a style="font-size:14pt;color: black;">Authors: </a>
+                {% for author in article.authors %}
+                    <a style="font-size:14pt;color: black;">{{author}}        </a>
+                {% endfor %}
+            </div>
         </div>
     </article>
 
