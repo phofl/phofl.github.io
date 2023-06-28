@@ -6,7 +6,7 @@
         <meta name="author" content="Patrick Hoefler">
         <meta name="description" content="">
         <meta name="viewport" content="width=device-width">
-        <title>Patrick Hoefler - Articles by [Patrick Hoefler | Patrick Hoefler</title>
+        <title>Dask performance benchmarking put to the test: Fixing a pandas bottleneck | Patrick Hoefler</title>
 
 	<link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
 	<link rel="icon" href="/favicon.ico" type="image/x-icon">
@@ -403,186 +403,171 @@ article .meta a.comments_btn:hover {
         </header>
 
         <div id="wrap">
-<div class="container index">
+<div class="container post">
+    <article>
+        <header>
+            <h1>Dask performance benchmarking put to the test: Fixing a pandas bottleneck</h1>
+            <time datetime="article.date.isoformat()" pubdate>Fri 23 June 2023</time>
+        </header>
 
-  <article>
-    <header>
-      <h2><a href="https://phofl.github.io/dask-performance-benchmarking-put-to-the-test-fixing-a-pandas-bottleneck.html">Dask performance benchmarking put to the test: Fixing a pandas bottleneck</a></h2>
-      <time datetime="" title="2023-06-23T00:00:00+02:00" pubdate>Fri 23 June 2023</time>
-    </header>
-
-    <div class="article_content">
-      <p><strong>Getting notified of a significant performance regression the day before release sucks, but quickly identifying and resolving it feels great!</strong></p>
+        <div class="article_content">
+            <p><strong>Getting notified of a significant performance regression the day before release sucks, but quickly identifying and resolving it feels great!</strong></p>
 <p>We were getting set up at our booth at JupyterCon 2023 when we received a notification:
 An engineer on our team had spotted a significant performance regression in Dask.
-With …</p>
-    </div>
+With an impact of 40% increased runtime, it blocked the release planned for the next day!</p>
+<p><img alt="" src="../images/dask_upstream_performance_tests/performance-regression.png"></p>
+<p>Luckily, the other attendees still focused on coffee and breakfast, so we commandeered an abandoned table next to our booth and got to work.</p>
+<h2 id="performance-testing-at-coiled">Performance testing at Coiled</h2>
+<p>The performance problem <a href="https://github.com/coiled/benchmarks/issues/840">had been flagged</a> by the automated performance testing for Dask that we developed at <a href="https://www.coiled.io/?utm_source=phofl&amp;utm_medium=dask-benchmark-pandas-bottleneck">Coiled</a>.
+If you have not read Guido Imperiale's <a href="https://blog.coiled.io/blog/performance-testing.html">blog post</a> on our approach to performance testing, here is a summary:
+With <a href="https://github.com/coiled/benchmarks"><code>coiled/benchmarks</code></a>, we created a benchmark suite that contains a variety of common workloads and operations with Dask, including standardized ones like the <a href="https://github.com/h2oai/db-benchmark"><code>h2oai/db-benchmark</code></a>.</p>
+<p>It also contains tooling that allows us to do two things:
+* Automatically <a href="https://blog.coiled.io/blog/performance-testing.html#nightly-tests">detect performance regressions</a> in Dask and raise them as issues.
+* <a href="https://blog.coiled.io/blog/performance-testing.html#a-b-tests">Run A/B tests</a> to assess the performance impact of different versions of Dask, upstream packages, or cluster configurations.</p>
+<p>While the former started this journey, the latter will also come in handy soon.  </p>
+<h2 id="identifying-the-problem">Identifying the problem</h2>
+<p>Our automated regression testing had alerted us that <a href="https://github.com/coiled/benchmarks/blob/895a13db09eb3172155e7b1260a5698f2284f5b7/tests/benchmarks/test_h2o.py#L140-L151"><code>test_h2o.py::test_q8</code></a> had experienced <a href="https://github.com/dask/community/issues/322#issuecomment-1542560550">a significant increase</a> in runtime across all data sizes and file formats. 
+From the <a href="https://benchmarks.coiled.io">historical report</a> of our benchmarking suite, we could see that <code>dask/dask</code> and <code>dask/distributed</code> were unlikely to be the culprit: 
+Nothing had changed on <code>dask/dask</code> when the performance started to degrade, and there was only one unrelated change on <code>dask/distributed</code>. 
+That left us with the Coiled platform and upstream packages as possible candidates. </p>
+<p>After digging deeper into the cluster data, we noticed that <code>pandas</code> had been upgraded from <code>1.5.3</code> to <code>2.0.1</code>. 
+A major upgrade to <code>pandas</code> at the same time a dataframe-based workload shows degrading performance? That's suspicious! </p>
+<p>To confirm this suspicion, we ran an A/B test based on the current Dask release (<code>2023.4.1</code> at the time), testing the impact of the pandas upgrade. 
+<a href="https://github.com/coiled/benchmarks/actions/runs/4946428740">The results</a> were clear: The runtime increased significantly with <code>pandas=2.0.1</code> (sample).</p>
+<p><img alt="" src="../images/dask_upstream_performance_tests/ab-test.png"></p>
+<p>Having shown that <code>pandas</code> caused for the performance degradation and that we could reproduce it with the current Dask release, our release process for <code>2023.5.0</code> <a href="https://github.com/dask/community/issues/322#issuecomment-1543878628">was cleared</a>.</p>
+<p>To further analyze the problem, we also derived a <a href="https://matthewrocklin.com/minimal-bug-reports.html#minimal-complete-verifiable-examples">minimal local reproducer</a> from the original workload:</p>
+<pre><code class="language-python">from dask.distributed import Client
 
-    <div class="meta">
-      <div>
-        <a href="https://phofl.github.io/dask-performance-benchmarking-put-to-the-test-fixing-a-pandas-bottleneck.html" class="read_more">Read more &#8594;</a>
-      </div>
+client = Client()
+uri = &quot;s3://coiled-datasets/h2o-benchmark/N_1e7_K_1e2_parquet/*.parquet&quot;
+ddf = dd.read_parquet(uri, engine=&quot;pyarrow&quot;, storage_options={&quot;anon&quot;: True}).persist()
+wait(ddf)
 
-      <div>
-            <a href="https://phofl.github.io/tag/dask.html" class="tag">dask</a>
-            <a href="https://phofl.github.io/tag/performance.html" class="tag">performance</a>
-            <a href="https://phofl.github.io/tag/coiled.html" class="tag">coiled</a>
-      </div>
+ddf = ddf[[&quot;id6&quot;, &quot;v1&quot;, &quot;v2&quot;, &quot;v3&quot;]]
+(
+    ddf[~ddf[&quot;v3&quot;].isna()][[&quot;id6&quot;, &quot;v3&quot;]]
+    .groupby(&quot;id6&quot;, dropna=False, observed=True)
+    .apply(
+        lambda x: x.nlargest(2, columns=&quot;v3&quot;),
+        meta={&quot;id6&quot;: &quot;Int64&quot;, &quot;v3&quot;: &quot;float64&quot;},
+    )[[&quot;v3&quot;]]
+).compute()
+</code></pre>
+<h2 id="investigating-the-pandas-performance-degradation">Investigating the pandas performance degradation</h2>
+<p>The only user-visible thing that changed between pandas 1.5.3 and pandas 2.0.1 was the default value
+of <code>group_keys</code> in <code>GroupBy</code>. Switching to <code>group_keys=False</code> with version 2.0.1
+got us back to the initial runtime.
+Now that we knew that pandas was to blame for the performance degradation, we had to create a 
+reproducer in plain pandas to help fix the issue.</p>
+<pre><code class="language-python">df = pd.DataFrame(
+    {
+        &quot;foo&quot;: np.random.randint(1, 50_000, (100_000, )), 
+        &quot;bar&quot;: np.random.randint(1, 100_000, (100_000, )),
+    },
+)
 
-    </div>
+df.groupby(
+    &quot;foo&quot;, group_keys=False
+).apply(lambda x: x.nlargest(2, columns=&quot;bar&quot;))
+</code></pre>
+<ul>
+<li><code>group_keys=False</code>: approx. 11 seconds</li>
+<li><code>group_keys=True</code>: approx. 15 seconds</li>
+</ul>
+<p>Experimenting a bit showed us that the bottleneck got even worse while increasing the number of 
+groups during the <code>groupby</code> calculation. We settled on this version which is 30% slower with 
+<code>group_keys=True</code>, enough to be able to troubleshoot the problem. There was no obvious reason
+why the changed value should bring a significant slowdown.</p>
+<p><code>%prun</code> showed us that the time was almost exclusively spent in a post-processing step that
+combines all groups via <code>concat</code>.</p>
+<h2 id="addressing-the-performance-degradation">Addressing the performance degradation</h2>
+<p>Let's look at how both cases differ. The new version passes the grouping levels to <code>concat</code>, which
+are used to construct the resulting Index levels. This shouldn't be that slow though. Investigations
+showed that this runs through a code-path that is very inefficient!</p>
+<p>Looking closer at the results of <code>%prun</code> pointed us to one specific loop that took up most of
+the runtime. This loop calculates the <code>codes</code> for the resulting index based on the provided 
+levels. It's slow, really slow! Every single element provided as <code>keys</code>, which 
+represent the number of groups, is checked against the whole level, which explains our previous 
+observation that the runtime got worse with an increasing number of groups. You can check out the 
+<a href="https://pandas.pydata.org/pandas-docs/stable/user_guide/merging.html#more-concatenating-with-group-keys">pandas user guide</a>
+if you are interested in situations where this is useful. Fortunately, we have a convenient
+advantage in case of <code>groupby</code>. We know beforehand that every key equals the specific level. 
+We added a fast-path that exploits this knowledge getting the runtime of this step more or less to
+zero.</p>
+<p>This change resulted in a <a href="https://github.com/pandas-dev/pandas/pull/53195">small PR</a> that cut 
+the runtime of <code>group_keys=True</code> to approximately 11 seconds as well.</p>
+<h2 id="conclusion">Conclusion</h2>
+<p>Now that we made our pandas reproducer run 30% faster, we have to check whether we accomplished our
+initial objective. Re-running the local Dask reproducer should give us an idea about the
+impact on Dask. We got the performance down to 22 seconds as well! Promising news that saved
+our plans for the evening!</p>
+<p>Unfortunately, we had to wait until pandas 2.0.2 was released to run a proper benchmark.</p>
+<p><img alt="" src="../images/dask_upstream_performance_tests/benchmark_after.jpg"></p>
+<p>This looks great! Our small pandas change translated to our Dask query and got performance back
+to the previous level!</p>
+        </div>
 
-  </article>
-  <div class="separator"></div>
-  <article>
-    <header>
-      <h2><a href="https://phofl.github.io/pandas-benchmarks.html">Benchmarking pandas against Polars from a pandas PoV</a></h2>
-      <time datetime="" title="2023-06-15T00:00:00+02:00" pubdate>Thu 15 June 2023</time>
-    </header>
+        <div class="meta">
+            <div>
+                    <a href="https://phofl.github.io/tag/dask.html" class="tag">dask</a>
+                    <a href="https://phofl.github.io/tag/performance.html" class="tag">performance</a>
+                    <a href="https://phofl.github.io/tag/coiled.html" class="tag">coiled</a>
+            </div>
+        </div>
+    </article>
 
-    <div class="article_content">
-      <p><em>Or: How writing efficient pandas code matters</em></p>
-<p><img alt="" src="../images/pandas_benchmark/title.png"></p>
-<h2 id="introduction">Introduction</h2>
-<p>I've regularly seen benchmarks that show how much faster Polars is compared to pandas. 
-The fact that Polars is faster than pandas is not too surprising since it is multithreaded while 
-pandas is mostly single-core. The big difference surprises me though. That's …</p>
-    </div>
-
-    <div class="meta">
-      <div>
-        <a href="https://phofl.github.io/pandas-benchmarks.html" class="read_more">Read more &#8594;</a>
-      </div>
-
-      <div>
-            <a href="https://phofl.github.io/tag/pandas.html" class="tag">pandas</a>
-      </div>
-
-    </div>
-
-  </article>
-  <div class="separator"></div>
-  <article>
-    <header>
-      <h2><a href="https://phofl.github.io/pyarrow-pandas-dask.html">Utilizing PyArrow to improve pandas and Dask workflows</a></h2>
-      <time datetime="" title="2023-06-05T00:00:00+02:00" pubdate>Mon 05 June 2023</time>
-    </header>
-
-    <div class="article_content">
-      <p><em>Get the most out of PyArrow support in pandas and Dask right now</em></p>
-<p><img alt="" src="../images/arrow_backend/title.svg"></p>
-<h2 id="introduction">Introduction</h2>
-<p>This post investigates where we can use PyArrow to improve our pandas and Dask workflows right now.
-General support for PyArrow dtypes was added with pandas 2.0 to <a href="https://pandas.pydata.org">pandas</a> 
-and <a href="https://www.dask.org?utm_source=phofl&amp;utm_medium=pyarrow-in-pandas-and-dask">Dask</a>. This solves a
-bunch …</p>
-    </div>
-
-    <div class="meta">
-      <div>
-        <a href="https://phofl.github.io/pyarrow-pandas-dask.html" class="read_more">Read more &#8594;</a>
-      </div>
-
-      <div>
-            <a href="https://phofl.github.io/tag/pandas.html" class="tag">pandas</a>
-            <a href="https://phofl.github.io/tag/dask.html" class="tag">dask</a>
-      </div>
-
-    </div>
-
-  </article>
-  <div class="separator"></div>
-  <article>
-    <header>
-      <h2><a href="https://phofl.github.io/pandas-20.html">Welcoming pandas 2.0</a></h2>
-      <time datetime="" title="2023-03-23T00:00:00+01:00" pubdate>Thu 23 March 2023</time>
-    </header>
-
-    <div class="article_content">
-      <p><em>How the API is changing and how to leverage new functionalities</em></p>
-<h2 id="introduction">Introduction</h2>
-<p>After 3 years of development, the second pandas 2.0 release candidate was released on the 16th of 
-March. There are many new features in pandas 2.0, including improved extension array
-support, pyarrow support for DataFrames and …</p>
-    </div>
-
-    <div class="meta">
-      <div>
-        <a href="https://phofl.github.io/pandas-20.html" class="read_more">Read more &#8594;</a>
-      </div>
-
-      <div>
-            <a href="https://phofl.github.io/tag/pandas.html" class="tag">pandas</a>
-      </div>
-
-    </div>
-
-  </article>
-  <div class="separator"></div>
-  <article>
-    <header>
-      <h2><a href="https://phofl.github.io/indexing-copy-view.html">A guide to efficient data selection in pandas</a></h2>
-      <time datetime="" title="2023-02-10T00:00:00+01:00" pubdate>Fri 10 February 2023</time>
-    </header>
-
-    <div class="article_content">
-      <p><em>Improve performance when selecting data from a pandas object</em></p>
-<h2 id="introduction">Introduction</h2>
-<p>There exist different ways of selecting a subset of data from a pandas object. Depending
-on the specific operation, the result will either be a view pointing to the original
-data or a copy of the original data. This ties …</p>
-    </div>
-
-    <div class="meta">
-      <div>
-        <a href="https://phofl.github.io/indexing-copy-view.html" class="read_more">Read more &#8594;</a>
-      </div>
-
-      <div>
-            <a href="https://phofl.github.io/tag/pandas.html" class="tag">pandas</a>
-      </div>
-
-    </div>
-
-  </article>
-  <div class="separator"></div>
-  <article>
-    <header>
-      <h2><a href="https://phofl.github.io/cow-introduction.html">A solution for inconsistencies in indexing operations in pandas</a></h2>
-      <time datetime="" title="2022-12-23T00:00:00+01:00" pubdate>Fri 23 December 2022</time>
-    </header>
-
-    <div class="article_content">
-      <p><em>Get rid of annoying SettingWithCopyWarning messages</em></p>
-<h2 id="introduction">Introduction</h2>
-<p>Indexing operations in pandas are quite flexible and thus, have many cases that can behave quite 
-different and therefore produce unexpected results. Additionally, it is hard to predict when a 
-<code>SettingWithCopyWarningis</code> raised and what this means exactly. I’ll show a couple of …</p>
-    </div>
-
-    <div class="meta">
-      <div>
-        <a href="https://phofl.github.io/cow-introduction.html" class="read_more">Read more &#8594;</a>
-      </div>
-
-      <div>
-            <a href="https://phofl.github.io/tag/pandas.html" class="tag">pandas</a>
-      </div>
-
-    </div>
-
-  </article>
-  <div class="separator"></div>
-
-  <nav class="pagination row">
-    <div class="col-xs-6 left">
-    </div>
-    <div class="col-xs-6 right">
-    </div>
-  </nav>
-
-  </div>
 
 </div>
+
+<style type="text/css">
+{
+    max-width: 700px;
+}
+
+.text_cell .prompt {
+    display: none;
+}
+
+div.cell {
+    padding: 0;
+}
+
+div.text_cell_render {
+    padding: 0;
+}
+
+div.prompt {
+    font-size: 13px;
+}
+
+div.input_prompt {
+    padding: .7em 0.2em;
+}
+
+div.output_prompt {
+    padding: .4em .2em;
+}
+
+div.input_area {
+    margin: .2em 0.4em;
+    max-width: 580px;
+}
+
+table.dataframe {
+    font-family: Arial, sans-serif;
+    font-size: 13px;
+    line-height: 20px;
+}
+
+table.dataframe th, td {
+    padding: 4px;
+    text-align: left;
+}
+
+pre code {
+    background-color: inherit;
+}</style>
 
         </div>
 <!--
