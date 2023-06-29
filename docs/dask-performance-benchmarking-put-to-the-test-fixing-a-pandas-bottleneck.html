@@ -15,8 +15,8 @@
 
         <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
         <link rel="stylesheet" type="text/css" href="/theme/css/icons.css"/>
-        <link rel="stylesheet" type="text/css" href="https://phofl.github.io/theme/css/font-awesome.min.css">
-        <link rel="stylesheet" type="text/css" href="https://phofl.github.io/theme/css/style.min.css">
+        <link rel="stylesheet" type="text/css" href="/theme/css/font-awesome.min.css"/>
+        <link rel="stylesheet" type="text/css" href="/theme/css/style.min.css"/>
         <style>.highlight .hll { background-color: #ffffcc }
 .highlight .c { color: #60a0b0; font-style: italic } /* Comment */
 .highlight .err { border: 1px solid #FF0000 } /* Error */
@@ -421,15 +421,15 @@ With an impact of 40% increased runtime, it blocked the release planned for the 
 <p>Luckily, the other attendees still focused on coffee and breakfast, so we commandeered an abandoned table next to our booth and got to work.</p>
 <h2 id="performance-testing-at-coiled">Performance testing at Coiled</h2>
 <p>The performance problem <a href="https://github.com/coiled/benchmarks/issues/840">had been flagged</a> by the automated performance testing for Dask that we developed at <a href="https://www.coiled.io/?utm_source=phofl&amp;utm_medium=dask-benchmark-pandas-bottleneck">Coiled</a>.
-If you have not read Guido Imperiale's <a href="https://blog.coiled.io/blog/performance-testing.html">blog post</a> on our approach to performance testing, here is a summary:
+If you have not read Guido Imperiale's <a href="https://blog.coiled.io/blog/performance-testing.html?utm_source=phofl&amp;utm_medium=dask-benchmark-pandas-bottleneck">blog post</a> on our approach to performance testing, here is a summary:
 With <a href="https://github.com/coiled/benchmarks"><code>coiled/benchmarks</code></a>, we created a benchmark suite that contains a variety of common workloads and operations with Dask, including standardized ones like the <a href="https://github.com/h2oai/db-benchmark"><code>h2oai/db-benchmark</code></a>.</p>
 <p>It also contains tooling that allows us to do two things:
-* Automatically <a href="https://blog.coiled.io/blog/performance-testing.html#nightly-tests">detect performance regressions</a> in Dask and raise them as issues.
-* <a href="https://blog.coiled.io/blog/performance-testing.html#a-b-tests">Run A/B tests</a> to assess the performance impact of different versions of Dask, upstream packages, or cluster configurations.</p>
+* Automatically <a href="https://blog.coiled.io/blog/performance-testing.html#nightly-tests?utm_source=phofl&amp;utm_medium=dask-benchmark-pandas-bottleneck">detect performance regressions</a> in Dask and raise them as issues.
+* <a href="https://blog.coiled.io/blog/performance-testing.html#a-b-tests?utm_source=phofl&amp;utm_medium=dask-benchmark-pandas-bottleneck">Run A/B tests</a> to assess the performance impact of different versions of Dask, upstream packages, or cluster configurations.</p>
 <p>While the former started this journey, the latter will also come in handy soon.  </p>
 <h2 id="identifying-the-problem">Identifying the problem</h2>
 <p>Our automated regression testing had alerted us that <a href="https://github.com/coiled/benchmarks/blob/895a13db09eb3172155e7b1260a5698f2284f5b7/tests/benchmarks/test_h2o.py#L140-L151"><code>test_h2o.py::test_q8</code></a> had experienced <a href="https://github.com/dask/community/issues/322#issuecomment-1542560550">a significant increase</a> in runtime across all data sizes and file formats. 
-From the <a href="https://benchmarks.coiled.io">historical report</a> of our benchmarking suite, we could see that <code>dask/dask</code> and <code>dask/distributed</code> were unlikely to be the culprit: 
+From the <a href="https://benchmarks.coiled.io?utm_source=phofl&amp;utm_medium=dask-benchmark-pandas-bottleneck">historical report</a> of our benchmarking suite, we could see that <code>dask/dask</code> and <code>dask/distributed</code> were unlikely to be the culprit: 
 Nothing had changed on <code>dask/dask</code> when the performance started to degrade, and there was only one unrelated change on <code>dask/distributed</code>. 
 That left us with the Coiled platform and upstream packages as possible candidates. </p>
 <p>After digging deeper into the cluster data, we noticed that <code>pandas</code> had been upgraded from <code>1.5.3</code> to <code>2.0.1</code>. 
@@ -515,6 +515,7 @@ to the previous level!</p>
                     <a href="https://phofl.github.io/tag/dask.html" class="tag">dask</a>
                     <a href="https://phofl.github.io/tag/performance.html" class="tag">performance</a>
                     <a href="https://phofl.github.io/tag/coiled.html" class="tag">coiled</a>
+                    <a href="https://phofl.github.io/tag/pandas.html" class="tag">pandas</a>
             </div>
             <div>
                 <a style="font-size:14pt;color: black;">Authors: </a>

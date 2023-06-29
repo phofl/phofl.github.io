@@ -10,15 +10,15 @@ With an impact of 40% increased runtime, it blocked the release planned for the 
 &lt;p&gt;Luckily, the other attendees still focused on coffee and breakfast, so we commandeered an abandoned table next to our booth and got to work.&lt;/p&gt;
 &lt;h2 id="performance-testing-at-coiled"&gt;Performance testing at Coiled&lt;/h2&gt;
 &lt;p&gt;The performance problem &lt;a href="https://github.com/coiled/benchmarks/issues/840"&gt;had been flagged&lt;/a&gt; by the automated performance testing for Dask that we developed at &lt;a href="https://www.coiled.io/?utm_source=phofl&amp;amp;utm_medium=dask-benchmark-pandas-bottleneck"&gt;Coiled&lt;/a&gt;.
-If you have not read Guido Imperiale's &lt;a href="https://blog.coiled.io/blog/performance-testing.html"&gt;blog post&lt;/a&gt; on our approach to performance testing, here is a summary:
+If you have not read Guido Imperiale's &lt;a href="https://blog.coiled.io/blog/performance-testing.html?utm_source=phofl&amp;amp;utm_medium=dask-benchmark-pandas-bottleneck"&gt;blog post&lt;/a&gt; on our approach to performance testing, here is a summary:
 With &lt;a href="https://github.com/coiled/benchmarks"&gt;&lt;code&gt;coiled/benchmarks&lt;/code&gt;&lt;/a&gt;, we created a benchmark suite that contains a variety of common workloads and operations with Dask, including standardized ones like the &lt;a href="https://github.com/h2oai/db-benchmark"&gt;&lt;code&gt;h2oai/db-benchmark&lt;/code&gt;&lt;/a&gt;.&lt;/p&gt;
 &lt;p&gt;It also contains tooling that allows us to do two things:
-* Automatically &lt;a href="https://blog.coiled.io/blog/performance-testing.html#nightly-tests"&gt;detect performance regressions&lt;/a&gt; in Dask and raise them as issues.
-* &lt;a href="https://blog.coiled.io/blog/performance-testing.html#a-b-tests"&gt;Run A/B tests&lt;/a&gt; to assess the performance impact of different versions of Dask, upstream packages, or cluster configurations.&lt;/p&gt;
+* Automatically &lt;a href="https://blog.coiled.io/blog/performance-testing.html#nightly-tests?utm_source=phofl&amp;amp;utm_medium=dask-benchmark-pandas-bottleneck"&gt;detect performance regressions&lt;/a&gt; in Dask and raise them as issues.
+* &lt;a href="https://blog.coiled.io/blog/performance-testing.html#a-b-tests?utm_source=phofl&amp;amp;utm_medium=dask-benchmark-pandas-bottleneck"&gt;Run A/B tests&lt;/a&gt; to assess the performance impact of different versions of Dask, upstream packages, or cluster configurations.&lt;/p&gt;
 &lt;p&gt;While the former started this journey, the latter will also come in handy soon.  &lt;/p&gt;
 &lt;h2 id="identifying-the-problem"&gt;Identifying the problem&lt;/h2&gt;
 &lt;p&gt;Our automated regression testing had alerted us that &lt;a href="https://github.com/coiled/benchmarks/blob/895a13db09eb3172155e7b1260a5698f2284f5b7/tests/benchmarks/test_h2o.py#L140-L151"&gt;&lt;code&gt;test_h2o.py::test_q8&lt;/code&gt;&lt;/a&gt; had experienced &lt;a href="https://github.com/dask/community/issues/322#issuecomment-1542560550"&gt;a significant increase&lt;/a&gt; in runtime across all data sizes and file formats. 
-From the &lt;a href="https://benchmarks.coiled.io"&gt;historical report&lt;/a&gt; of our benchmarking suite, we could see that &lt;code&gt;dask/dask&lt;/code&gt; and &lt;code&gt;dask/distributed&lt;/code&gt; were unlikely to be the culprit: 
+From the &lt;a href="https://benchmarks.coiled.io?utm_source=phofl&amp;amp;utm_medium=dask-benchmark-pandas-bottleneck"&gt;historical report&lt;/a&gt; of our benchmarking suite, we could see that &lt;code&gt;dask/dask&lt;/code&gt; and &lt;code&gt;dask/distributed&lt;/code&gt; were unlikely to be the culprit: 
 Nothing had changed on &lt;code&gt;dask/dask&lt;/code&gt; when the performance started to degrade, and there was only one unrelated change on &lt;code&gt;dask/distributed&lt;/code&gt;. 
 That left us with the Coiled platform and upstream packages as possible candidates. &lt;/p&gt;
 &lt;p&gt;After digging deeper into the cluster data, we noticed that &lt;code&gt;pandas&lt;/code&gt; had been upgraded from &lt;code&gt;1.5.3&lt;/code&gt; to &lt;code&gt;2.0.1&lt;/code&gt;. 
@@ -96,4 +96,4 @@ our plans for the evening!&lt;/p&gt;
 &lt;p&gt;Unfortunately, we had to wait until pandas 2.0.2 was released to run a proper benchmark.&lt;/p&gt;
 &lt;p&gt;&lt;img alt="" src="../images/dask_upstream_performance_tests/benchmark_after.jpg"&gt;&lt;/p&gt;
 &lt;p&gt;This looks great! Our small pandas change translated to our Dask query and got performance back
-to the previous level!&lt;/p&gt;</content><category term="posts"></category><category term="dask"></category><category term="performance"></category><category term="coiled"></category></entry></feed>
+to the previous level!&lt;/p&gt;</content><category term="posts"></category><category term="dask"></category><category term="performance"></category><category term="coiled"></category><category term="pandas"></category></entry></feed>

@@ -2,7 +2,7 @@
 title: Dask performance benchmarking put to the test: Fixing a pandas bottleneck
 blogpost: true
 date: 2023-06-28
-tags: dask, performance, coiled
+tags: dask, performance, coiled, pandas
 authors: Patrick Hoefler, Hendrik Makait
 ---
 
@@ -18,18 +18,18 @@ Luckily, the other attendees still focused on coffee and breakfast, so we comman
 ## Performance testing at Coiled
 
 The performance problem [had been flagged](https://github.com/coiled/benchmarks/issues/840) by the automated performance testing for Dask that we developed at [Coiled](https://www.coiled.io/?utm_source=phofl&utm_medium=dask-benchmark-pandas-bottleneck).
-If you have not read Guido Imperiale's [blog post](https://blog.coiled.io/blog/performance-testing.html) on our approach to performance testing, here is a summary:
+If you have not read Guido Imperiale's [blog post](https://blog.coiled.io/blog/performance-testing.html?utm_source=phofl&utm_medium=dask-benchmark-pandas-bottleneck) on our approach to performance testing, here is a summary:
 With [`coiled/benchmarks`](https://github.com/coiled/benchmarks), we created a benchmark suite that contains a variety of common workloads and operations with Dask, including standardized ones like the [`h2oai/db-benchmark`](https://github.com/h2oai/db-benchmark).
 
 It also contains tooling that allows us to do two things:
-* Automatically [detect performance regressions](https://blog.coiled.io/blog/performance-testing.html#nightly-tests) in Dask and raise them as issues.
-* [Run A/B tests](https://blog.coiled.io/blog/performance-testing.html#a-b-tests) to assess the performance impact of different versions of Dask, upstream packages, or cluster configurations.
+* Automatically [detect performance regressions](https://blog.coiled.io/blog/performance-testing.html#nightly-tests?utm_source=phofl&utm_medium=dask-benchmark-pandas-bottleneck) in Dask and raise them as issues.
+* [Run A/B tests](https://blog.coiled.io/blog/performance-testing.html#a-b-tests?utm_source=phofl&utm_medium=dask-benchmark-pandas-bottleneck) to assess the performance impact of different versions of Dask, upstream packages, or cluster configurations.
 
 While the former started this journey, the latter will also come in handy soon.  
 ## Identifying the problem
 
 Our automated regression testing had alerted us that [`test_h2o.py::test_q8`](https://github.com/coiled/benchmarks/blob/895a13db09eb3172155e7b1260a5698f2284f5b7/tests/benchmarks/test_h2o.py#L140-L151) had experienced [a significant increase](https://github.com/dask/community/issues/322#issuecomment-1542560550) in runtime across all data sizes and file formats. 
-From the [historical report](https://benchmarks.coiled.io) of our benchmarking suite, we could see that `dask/dask` and `dask/distributed` were unlikely to be the culprit: 
+From the [historical report](https://benchmarks.coiled.io?utm_source=phofl&utm_medium=dask-benchmark-pandas-bottleneck) of our benchmarking suite, we could see that `dask/dask` and `dask/distributed` were unlikely to be the culprit: 
 Nothing had changed on `dask/dask` when the performance started to degrade, and there was only one unrelated change on `dask/distributed`. 
 That left us with the Coiled platform and upstream packages as possible candidates. 
 
