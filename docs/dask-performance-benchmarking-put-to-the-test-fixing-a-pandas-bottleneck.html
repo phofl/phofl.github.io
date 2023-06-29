@@ -423,9 +423,11 @@ With an impact of 40% increased runtime, it blocked the release planned for the 
 <p>The performance problem <a href="https://github.com/coiled/benchmarks/issues/840">had been flagged</a> by the automated performance testing for Dask that we developed at <a href="https://www.coiled.io/?utm_source=phofl&amp;utm_medium=dask-benchmark-pandas-bottleneck">Coiled</a>.
 If you have not read Guido Imperiale's <a href="https://blog.coiled.io/blog/performance-testing.html?utm_source=phofl&amp;utm_medium=dask-benchmark-pandas-bottleneck">blog post</a> on our approach to performance testing, here is a summary:
 With <a href="https://github.com/coiled/benchmarks"><code>coiled/benchmarks</code></a>, we created a benchmark suite that contains a variety of common workloads and operations with Dask, including standardized ones like the <a href="https://github.com/h2oai/db-benchmark"><code>h2oai/db-benchmark</code></a>.</p>
-<p>It also contains tooling that allows us to do two things:
-* Automatically <a href="https://blog.coiled.io/blog/performance-testing.html#nightly-tests?utm_source=phofl&amp;utm_medium=dask-benchmark-pandas-bottleneck">detect performance regressions</a> in Dask and raise them as issues.
-* <a href="https://blog.coiled.io/blog/performance-testing.html#a-b-tests?utm_source=phofl&amp;utm_medium=dask-benchmark-pandas-bottleneck">Run A/B tests</a> to assess the performance impact of different versions of Dask, upstream packages, or cluster configurations.</p>
+<p>It also contains tooling that allows us to do two things:</p>
+<ul>
+<li>Automatically <a href="https://blog.coiled.io/blog/performance-testing.html#nightly-tests?utm_source=phofl&amp;utm_medium=dask-benchmark-pandas-bottleneck">detect performance regressions</a> in Dask and raise them as issues.</li>
+<li><a href="https://blog.coiled.io/blog/performance-testing.html#a-b-tests?utm_source=phofl&amp;utm_medium=dask-benchmark-pandas-bottleneck">Run A/B tests</a> to assess the performance impact of different versions of Dask, upstream packages, or cluster configurations.</li>
+</ul>
 <p>While the former started this journey, the latter will also come in handy soon.  </p>
 <h2 id="identifying-the-problem">Identifying the problem</h2>
 <p>Our automated regression testing had alerted us that <a href="https://github.com/coiled/benchmarks/blob/895a13db09eb3172155e7b1260a5698f2284f5b7/tests/benchmarks/test_h2o.py#L140-L151"><code>test_h2o.py::test_q8</code></a> had experienced <a href="https://github.com/dask/community/issues/322#issuecomment-1542560550">a significant increase</a> in runtime across all data sizes and file formats. 
