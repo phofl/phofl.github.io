@@ -1,11 +1,11 @@
 ---
-title: Deep dive into pandas Copy-on-Write mode
+title: Deep dive into pandas Copy-on-Write mode - part I
 date: 2023-06-15
 slug: cow-deep-dive
 tags: pandas
 ---
 
-_How it works, how to adapt your code and how to use it effectively_
+_Explaining how it works internally_
 
 ## Introduction
 
