@@ -56,7 +56,7 @@
 		  <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#theNavbar">
 		    <span class="icon-bar"></span>
 		    <span class="icon-bar"></span>
-		    <span class="icon-bar"></span> 
+		    <span class="icon-bar"></span>
 		  </button>
                   <a class="navbar-brand" href="/" title="Home" class="title">{{ SITENAME }}</a>
                 </div>
@@ -121,6 +121,16 @@
       </section>
     </footer>
 
-        {% include '_includes/analytics.html' %}
+{% if GOOGLE_ANALYTICS %}
+  <!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-1SZE9J80WR"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', '{{GOOGLE_ANALYTICS}}');
+</script>
+{% endif %}
     </body>
 </html>
