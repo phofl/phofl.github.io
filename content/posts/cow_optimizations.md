@@ -33,7 +33,10 @@ performed in ``reset_index``.
 All these defensive copies are no longer there when Copy-on-Write is enabled. This affects many
 methods. A full list can be found [here](https://pandas.pydata.org/docs/user_guide/copy_on_write.html#copy-on-write-optimizations).
 
-Let's look at what this means performance-wise if we combine some of these methods:
+Additionally, selecting a columnar subset of a DataFrame will now always return a view instead of
+copies as before.
+
+Let's look at what this means performance-wise when we combine some of these methods:
 
 ```python
 import pandas as pd
@@ -169,5 +172,19 @@ df.replace(..., inplace=True)
 
 This would get rid of this problem. It's still an open proposal and might go into a different
 direction. That said, this only pertains to columns that are actually
-changed, all other columns are returned as views anyway. This means that only one copy is copied
+changed; all other columns are returned as views anyway. This means that only one copy is copied
 if your value is only found in one column.
+
+## Conclusion
+
+We investigate how CoW changes pandas internal behavior and how this will translate to improvements
+in your code. Many methods will get faster with CoW, while we will see a slowdown in a couple of
+indexing related operations. Previously, these operations always operated inplace which might have
+produced side effects. These are gone with CoW and a modification on one DataFrame object will
+never impact any other.
+
+The next post in this series will explain how you can update your code to be compliant
+with CoW. Also, we will explain which patterns to avoid in the future.
+
+Thank you for reading. Feel free to reach out to share your thoughts and feedback 
+about Copy-on-Write.
