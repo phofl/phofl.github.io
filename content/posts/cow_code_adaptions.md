@@ -97,3 +97,6 @@ df = df.reset_index().drop(...)
 
 This will only keep one reference alive.
 
+## Transition to NumPy arrays
+
+TODO: read_only arrays
