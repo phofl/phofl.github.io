@@ -12,7 +12,7 @@ DataFrame. Historically, most DataFrames are backed by NumPy arrays. [pandas 2.0
 option to use PyArrow arrays](https://medium.com/gitconnected/welcoming-pandas-2-0-194094e4275b) as a storage format. 
 There exists an intermediate layer between these arrays and your DataFrame, Blocks and the
 BlockManager. We will take a look at how this layer orchestrates the different arrays, basically
-what's behind ``pd.DataFrame()`` We will try to answer all questions you might have about pandas 
+what's behind ``pd.DataFrame()``. We will try to answer all questions you might have about pandas 
 internals.
 
 The post will introduce some terminology that is necessary to understand how Copy-on-Write works,
@@ -29,7 +29,9 @@ be very fast in pandas. Let's look a bit more into the details of these layers.
 ### Arrays
 
 The actual data of a DataFrame can be stored in a set of NumPy arrays or pandas ExtensionArrays. 
-This layer is not very interesting since it just holds your data. You can read up on pandas 
+This layer generally dispatches to the underlying implementation, e.g. it will utilize the NumPy 
+API if the data is stored in NumPy arrays. pandas simply stores the data in them and calls its 
+methods without enriching the interace. You can read up on pandas 
 ExtensionArrays [here](https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.api.extensions.ExtensionArray.html).
 
 NumPy arrays are normally 2-dimensional, which offers a bunch of performance advantages that we
@@ -109,9 +111,14 @@ operation is necessary. This is very cheap. We now have 2 Blocks that store inte
 a DataFrame that is not consolidated.
 
 These differences don't matter much as long as you are only operating on a per-column basis. It
-will impact the performance of your operations is as soon as they operate on multiple columns.
+will impact the performance of your operations as soon as they operate on multiple columns.
+For example, performing any ``axis=1`` operation will transpose the data of your DataFrame. 
+Transposing is generally zero-copy if performed on a DataFrame that is backed by a single NumPy
+array. This is no longer true if every column is backed by a different array and hence, will incur
+performance penalties.
 
-It will also require a copy when you want to get all integer columns from your DataFrame.
+It will also require a copy when you want to get all integer columns from your DataFrame as a 
+NumPy array.
 
 ```python
 df[["a", "c", "new"]].to_numpy()
