@@ -1,9 +1,11 @@
 ---
-title: pandas internals: Lets talk about Blocks
+title: pandas internals explained
 date: 2023-06-15
 slug: pandas-internals
 tags: pandas
 ---
+
+_Explaining the pandas data model and its advantages_
 
 ## Introduction
 
