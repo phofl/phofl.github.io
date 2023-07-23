@@ -621,12 +621,12 @@ wait(df)
 the size of our cluster from 30 machines to 15, reducing the cost by 50%. Subsequently, we also reduced our computational 
 resources by a factor of 2, which makes our performance improvement even more impressive. Thus,
 the performance improved by a factor of 4 and 6 respectively. We can
-perform the same computations on a smaller cluster, which saves money and is more efficient in general,
+perform the same computations on a smaller cluster, which saves money and is more efficient in general
 and still get a performance boost out of it.</p>
-<p>Summarizing, we saw that PyArrow string-columns are a huge improvement when comparing them to NumPy object columns in
+<p>Summarizing, we saw that PyArrow string-columns are a huge improvement to NumPy object columns in
 DataFrames. Switching to PyArrow strings is a relatively small change that might improve the 
-performance and efficiency of an average workflow that depends on string data immensely. These improvements 
-are equally visible in pandas and Dask!</p>
+performance and efficiency of an average workflow that depends on string data. These improvements 
+are visible in pandas and Dask!</p>
 <h2 id="engine-keyword-in-io-methods">Engine keyword in I/O methods</h2>
 <p>We will now take a look at I/O functions in pandas and Dask. Some functions have custom implementations, 
 like <code>read_csv</code>, while others dispatch to another library, like <code>read_excel</code> to 

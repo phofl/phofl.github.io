@@ -276,13 +276,13 @@ We get nice improvements by factors of 2 and 3. This is especially intriguing si
 the size of our cluster from 30 machines to 15, reducing the cost by 50%. Subsequently, we also reduced our computational 
 resources by a factor of 2, which makes our performance improvement even more impressive. Thus,
 the performance improved by a factor of 4 and 6 respectively. We can
-perform the same computations on a smaller cluster, which saves money and is more efficient in general,
+perform the same computations on a smaller cluster, which saves money and is more efficient in general
 and still get a performance boost out of it.
 
-Summarizing, we saw that PyArrow string-columns are a huge improvement when comparing them to NumPy object columns in
+Summarizing, we saw that PyArrow string-columns are a huge improvement to NumPy object columns in
 DataFrames. Switching to PyArrow strings is a relatively small change that might improve the 
-performance and efficiency of an average workflow that depends on string data immensely. These improvements 
-are equally visible in pandas and Dask!
+performance and efficiency of an average workflow that depends on string data. These improvements 
+are visible in pandas and Dask!
 
 ## Engine keyword in I/O methods
 
