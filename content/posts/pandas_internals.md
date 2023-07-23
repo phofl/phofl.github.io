@@ -1,5 +1,5 @@
 ---
-title: pandas internals explained
+title: pandas Internals Explained
 date: 2023-06-15
 slug: pandas-internals
 tags: pandas
@@ -12,8 +12,8 @@ _Explaining the pandas data model and its advantages_
 pandas enables you to choose between different types of arrays to represent the data of your
 DataFrame. Historically, most DataFrames are backed by NumPy arrays. [pandas 2.0 introduced the 
 option to use PyArrow arrays](https://medium.com/gitconnected/welcoming-pandas-2-0-194094e4275b) as a storage format. 
-There exists an intermediate layer between these arrays and your DataFrame, Blocks and the
-BlockManager. We will take a look at how this layer orchestrates the different arrays, basically
+There exists an intermediate layer between these arrays and your DataFrame, ``Blocks`` and the
+``BlockManager``. We will take a look at how this layer orchestrates the different arrays, basically
 what's behind ``pd.DataFrame()``. We will try to answer all questions you might have about pandas 
 internals.
 
@@ -22,7 +22,7 @@ which is something I'll write about next.
 
 ## pandas data structure
 
-A DataFrame is usually backed by some sort of array, e.g. a NumPy array or 
+A ``DataFrame`` is usually backed by some sort of array, e.g. a NumPy array or 
 pandas ExtensionArray. These arrays store the data of the DataFrame. pandas adds an intermediate 
 layer, called ``Block`` and ``BlockManager`` that orchestrate these arrays to make operations as 
 efficient as possible. This is one of the reasons why methods that operate on multiple columns can 
