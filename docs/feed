@@ -1,5 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
-<rss version="2.0"><channel><title>Patrick Hoefler</title><link>https://phofl.github.io/</link><description></description><lastBuildDate>Thu, 23 Mar 2023 00:00:00 +0100</lastBuildDate><item><title>Welcoming pandas 2.0</title><link>https://phofl.github.io/pandas-20.html</link><description>&lt;p&gt;&lt;em&gt;How the API is changing and how to leverage new functionalities&lt;/em&gt;&lt;/p&gt;
+<rss version="2.0"><channel><title>Patrick Hoefler</title><link>https://phofl.github.io/</link><description></description><lastBuildDate>Wed, 28 Jun 2023 00:00:00 +0200</lastBuildDate><item><title>Dask performance benchmarking put to the test: Fixing a pandas bottleneck</title><link>https://phofl.github.io/dask-performance-benchmarking-put-to-the-test-fixing-a-pandas-bottleneck.html</link><description>&lt;p&gt;&lt;strong&gt;Getting notified of a significant performance regression the day before release sucks, but quickly identifying and resolving it feels great!&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;We were getting set up at our booth at JupyterCon 2023 when we received a notification:
+An engineer on our team had spotted a significant performance regression in Dask.
+With …&lt;/p&gt;</description><dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Patrick Hoefler</dc:creator><pubDate>Wed, 28 Jun 2023 00:00:00 +0200</pubDate><guid isPermaLink="false">tag:phofl.github.io,2023-06-28:/dask-performance-benchmarking-put-to-the-test-fixing-a-pandas-bottleneck.html</guid><category>posts</category><category>dask</category><category>performance</category><category>coiled</category><category>pandas</category></item><item><title>Benchmarking pandas against Polars from a pandas PoV</title><link>https://phofl.github.io/pandas-benchmarks.html</link><description>&lt;p&gt;&lt;em&gt;Or: How writing efficient pandas code matters&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img alt="" src="../images/pandas_benchmark/title.png"&gt;&lt;/p&gt;
+&lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
+&lt;p&gt;I've regularly seen benchmarks that show how much faster Polars is compared to pandas. 
+The fact that Polars is faster than pandas is not too surprising since it is multithreaded while 
+pandas is mostly single-core. The big difference surprises me though. That's …&lt;/p&gt;</description><dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Patrick Hoefler</dc:creator><pubDate>Thu, 15 Jun 2023 00:00:00 +0200</pubDate><guid isPermaLink="false">tag:phofl.github.io,2023-06-15:/pandas-benchmarks.html</guid><category>posts</category><category>pandas</category></item><item><title>Utilizing PyArrow to improve pandas and Dask workflows</title><link>https://phofl.github.io/pyarrow-pandas-dask.html</link><description>&lt;p&gt;&lt;em&gt;Get the most out of PyArrow support in pandas and Dask right now&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img alt="" src="../images/arrow_backend/title.svg"&gt;&lt;/p&gt;
+&lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
+&lt;p&gt;This post investigates where we can use PyArrow to improve our pandas and Dask workflows right now.
+General support for PyArrow dtypes was added with pandas 2.0 to &lt;a href="https://pandas.pydata.org"&gt;pandas&lt;/a&gt; 
+and &lt;a href="https://www.dask.org?utm_source=phofl&amp;amp;utm_medium=pyarrow-in-pandas-and-dask"&gt;Dask&lt;/a&gt;. This solves a
+bunch …&lt;/p&gt;</description><dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Patrick Hoefler</dc:creator><pubDate>Mon, 05 Jun 2023 00:00:00 +0200</pubDate><guid isPermaLink="false">tag:phofl.github.io,2023-06-05:/pyarrow-pandas-dask.html</guid><category>posts</category><category>pandas</category><category>dask</category></item><item><title>Welcoming pandas 2.0</title><link>https://phofl.github.io/pandas-20.html</link><description>&lt;p&gt;&lt;em&gt;How the API is changing and how to leverage new functionalities&lt;/em&gt;&lt;/p&gt;
 &lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
 &lt;p&gt;After 3 years of development, the second pandas 2.0 release candidate was released on the 16th of 
 March. There are many new features in pandas 2.0, including improved extension array
