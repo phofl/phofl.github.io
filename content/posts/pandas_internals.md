@@ -1,6 +1,6 @@
 ---
 title: pandas Internals Explained
-date: 2023-06-15
+date: 2023-07-21
 slug: pandas-internals
 tags: pandas
 ---
