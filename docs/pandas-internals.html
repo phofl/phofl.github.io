@@ -6,7 +6,7 @@
         <meta name="author" content="Patrick Hoefler">
         <meta name="description" content="">
         <meta name="viewport" content="width=device-width">
-        <title>Patrick Hoefler - Articles by Patrick Hoefler | Patrick Hoefler</title>
+        <title>pandas Internals Explained | Patrick Hoefler</title>
 
 	<link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
 	<link rel="icon" href="/favicon.ico" type="image/x-icon">
@@ -405,215 +405,179 @@ article .meta a.comments_btn:hover {
         </header>
 
         <div id="wrap">
-<div class="container index">
+<div class="container post">
+    <article>
+        <header>
+            <h1>pandas Internals Explained</h1>
+            <time datetime="article.date.isoformat()" pubdate>Fri 21 July 2023</time>
+        </header>
 
-  <article>
-    <header>
-      <h2><a href="https://phofl.github.io/pandas-internals.html">pandas Internals Explained</a></h2>
-      <time datetime="" title="2023-07-21T00:00:00+02:00" pubdate>Fri 21 July 2023</time>
-    </header>
-
-    <div class="article_content">
-      <p><em>Explaining the pandas data model and its advantages</em></p>
+        <div class="article_content">
+            <p><em>Explaining the pandas data model and its advantages</em></p>
 <h2 id="introduction">Introduction</h2>
 <p>pandas enables you to choose between different types of arrays to represent the data of your
 DataFrame. Historically, most DataFrames are backed by NumPy arrays. <a href="https://medium.com/gitconnected/welcoming-pandas-2-0-194094e4275b">pandas 2.0 introduced the 
 option to use PyArrow arrays</a> as a storage format. 
-There exists …</p>
-    </div>
+There exists an intermediate layer between these arrays and your DataFrame, <code>Blocks</code> and the
+<code>BlockManager</code>. We will take a look at how this layer orchestrates the different arrays, basically
+what's behind <code>pd.DataFrame()</code>. We will try to answer all questions you might have about pandas 
+internals.</p>
+<p>The post will introduce some terminology that is necessary to understand how Copy-on-Write works,
+which is something I'll write about next.</p>
+<h2 id="pandas-data-structure">pandas data structure</h2>
+<p>A <code>DataFrame</code> is usually backed by some sort of array, e.g. a NumPy array or 
+pandas ExtensionArray. These arrays store the data of the DataFrame. pandas adds an intermediate 
+layer, called <code>Block</code> and <code>BlockManager</code> that orchestrate these arrays to make operations as 
+efficient as possible. This is one of the reasons why methods that operate on multiple columns can 
+be very fast in pandas. Let's look a bit more into the details of these layers.</p>
+<h3 id="arrays">Arrays</h3>
+<p>The actual data of a DataFrame can be stored in a set of NumPy arrays or pandas ExtensionArrays. 
+This layer generally dispatches to the underlying implementation, e.g. it will utilize the NumPy 
+API if the data is stored in NumPy arrays. pandas simply stores the data in them and calls its 
+methods without enriching the interace. You can read up on pandas 
+ExtensionArrays <a href="https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.api.extensions.ExtensionArray.html">here</a>.</p>
+<p>NumPy arrays are normally 2-dimensional, which offers a bunch of performance advantages that we
+will take a look at later. pandas ExtensionArrays are mostly one-dimensional data structures as
+of right now. This makes things a bit more predictable but has some drawbacks when looking at
+performance in a specific set of operations. ExtensionArrays enable DataFrames that are backed by
+PyArrow arrays among other dtypes.</p>
+<h3 id="blocks">Blocks</h3>
+<p>A DataFrame normally consists of a set of columns that are represented by at least one array, 
+normally you'll have a collection of arrays since one array can only store one specific dtype.
+These arrays store your data but don't have any information about which columns they are
+representing. Every array from your DataFrame is wrapped by one corresponding <code>Block</code>. Blocks
+add some additional information to these arrays like the column locations that are represented
+by this Block. Blocks serve as a layer around the actual arrays that can be enriched with utility methods
+that are necessary for pandas operations.</p>
+<p>When an actual operation is executed on a DataFrame, the Block ensures that the method dispatches
+to the underlying array, e.g. if you call <code>astype</code>, it will make sure that this operation is
+called on the array.</p>
+<p>This layer does not have any information about the other columns in the DataFrame. It is a stand-alone
+object.</p>
+<h3 id="blockmanager">BlockManager</h3>
+<p>As the name suggests, the <code>BlockManager</code> orchestrates all Blocks that are connected to one 
+DataFrame. It holds the Blocks itself and information about your DataFrame's axes, e.g. column names
+and Index labels. Most importantly, it dispatches most operations to the actual Blocks.</p>
+<pre><code class="language-python">df.replace(...)
+</code></pre>
+<p>The BlockManager ensures that <code>replace</code> is executed on every Block.</p>
+<h2 id="what-is-a-consolidated-dataframe">What is a consolidated DataFrame</h2>
+<p>We are assuming that the DataFrames is backed by NumPy dtypes, e.g. that it's data can be stored
+as two-dimensional arrays.</p>
+<p>When a DataFrame is constructed, pandas mostly ensures that there is only one Block per dtype.</p>
+<pre><code class="language-python">df = pd.DataFrame(
+    {
+        &quot;a&quot;: [1, 2, 3],
+        &quot;b&quot;: [1.5, 2.5, 3.5],
+        &quot;c&quot;: [10, 11, 12],
+        &quot;d&quot;: [10.5, 11.5, 12.5],
+    }
+)
+</code></pre>
+<p>This DataFrame has 4 columns which are represented by 2 arrays, one of the arrays stores the integer
+dtypes while the other stores the float dtypes. This is a <em>consolidated</em> DataFrame.</p>
+<p>Now let's add a new column to this DataFrame:</p>
+<pre><code class="language-python">df[&quot;new&quot;] = 100
+</code></pre>
+<p>This will have the same dtype as our existing column <code>"a"</code> and <code>"c"</code>. There are now two potential
+ways of moving forward:</p>
+<ol>
+<li>Add the new column to the existing array that holds the integer columns</li>
+<li>Create a new array that only stores the new column.</li>
+</ol>
+<p>The first option would require us to add a new column to the existing array. This would require copying
+the data since NumPy does not support this operation without a copy. This is obviously a pretty steep
+cost for simply adding one column.</p>
+<p>The second option adds a third array to our collection of arrays. Apart from this, no additional 
+operation is necessary. This is very cheap. We now have 2 Blocks that store integer data. This is
+a DataFrame that is not consolidated.</p>
+<p>These differences don't matter much as long as you are only operating on a per-column basis. It
+will impact the performance of your operations as soon as they operate on multiple columns.
+For example, performing any <code>axis=1</code> operation will transpose the data of your DataFrame. 
+Transposing is generally zero-copy if performed on a DataFrame that is backed by a single NumPy
+array. This is no longer true if every column is backed by a different array and hence, will incur
+performance penalties.</p>
+<p>It will also require a copy when you want to get all integer columns from your DataFrame as a 
+NumPy array.</p>
+<pre><code class="language-python">df[[&quot;a&quot;, &quot;c&quot;, &quot;new&quot;]].to_numpy()
+</code></pre>
+<p>This will create a copy since the results have to be stored in a single NumPy array. It returns
+a view on a consolidated DataFrame, which makes this very cheap.</p>
+<p>Previous versions often caused an internal consolidation for certain methods, which in turn caused 
+unpredictable performance behavior. Methods like <code>reset_index</code> were triggering a completely
+unnecessary consolidation. These were mostly removed over the last couple of releases.</p>
+<p>Summarizing, a consolidated DataFrame is generally better than an unconsolidated one, but the 
+difference depends heavily on the type of operation you want to execute.</p>
+<h1 id="conclusion">Conclusion</h1>
+<p>We took a brief look behind the scenes of a pandas DataFrame. We learned what <code>Blocks</code> and
+<code>BlockManagers</code> are and how they orchestrate your DataFrame. These terms will prove valuable
+when we take a look behind the scenes of 
+<a href="https://medium.com/towards-data-science/a-solution-for-inconsistencies-in-indexing-operations-in-pandas-b76e10719744">Copy-on-Write</a>.</p>
+<p>Thank you for reading. Feel free to reach out to share your thoughts and feedback.</p>
+        </div>
 
-    <div class="meta">
-      <div>
-        <a href="https://phofl.github.io/pandas-internals.html" class="read_more">Read more &#8594;</a>
-      </div>
+        <div class="meta">
+            <div>
+                    <a href="https://phofl.github.io/tag/pandas.html" class="tag">pandas</a>
+            </div>
+            <div>
+                <a style="font-size:14pt;color: black;">Authors: </a>
+                    <a style="font-size:14pt;color: black;">Patrick Hoefler        </a>
+            </div>
+        </div>
+    </article>
 
-      <div>
-            <a href="https://phofl.github.io/tag/pandas.html" class="tag">pandas</a>
-      </div>
-
-    </div>
-
-  </article>
-  <div class="separator"></div>
-  <article>
-    <header>
-      <h2><a href="https://phofl.github.io/dask-performance-benchmarking-put-to-the-test-fixing-a-pandas-bottleneck.html">Dask performance benchmarking put to the test: Fixing a pandas bottleneck</a></h2>
-      <time datetime="" title="2023-06-28T00:00:00+02:00" pubdate>Wed 28 June 2023</time>
-    </header>
-
-    <div class="article_content">
-      <p><strong>Getting notified of a significant performance regression the day before release sucks, but quickly identifying and resolving it feels great!</strong></p>
-<p>We were getting set up at our booth at JupyterCon 2023 when we received a notification:
-An engineer on our team had spotted a significant performance regression in Dask.
-With …</p>
-    </div>
-
-    <div class="meta">
-      <div>
-        <a href="https://phofl.github.io/dask-performance-benchmarking-put-to-the-test-fixing-a-pandas-bottleneck.html" class="read_more">Read more &#8594;</a>
-      </div>
-
-      <div>
-            <a href="https://phofl.github.io/tag/dask.html" class="tag">dask</a>
-            <a href="https://phofl.github.io/tag/performance.html" class="tag">performance</a>
-            <a href="https://phofl.github.io/tag/coiled.html" class="tag">coiled</a>
-            <a href="https://phofl.github.io/tag/pandas.html" class="tag">pandas</a>
-      </div>
-
-    </div>
-
-  </article>
-  <div class="separator"></div>
-  <article>
-    <header>
-      <h2><a href="https://phofl.github.io/pandas-benchmarks.html">Benchmarking pandas against Polars from a pandas PoV</a></h2>
-      <time datetime="" title="2023-06-15T00:00:00+02:00" pubdate>Thu 15 June 2023</time>
-    </header>
-
-    <div class="article_content">
-      <p><em>Or: How writing efficient pandas code matters</em></p>
-<p><img alt="" src="../images/pandas_benchmark/title.png"></p>
-<h2 id="introduction">Introduction</h2>
-<p>I've regularly seen benchmarks that show how much faster Polars is compared to pandas. 
-The fact that Polars is faster than pandas is not too surprising since it is multithreaded while 
-pandas is mostly single-core. The big difference surprises me though. That's …</p>
-    </div>
-
-    <div class="meta">
-      <div>
-        <a href="https://phofl.github.io/pandas-benchmarks.html" class="read_more">Read more &#8594;</a>
-      </div>
-
-      <div>
-            <a href="https://phofl.github.io/tag/pandas.html" class="tag">pandas</a>
-      </div>
-
-    </div>
-
-  </article>
-  <div class="separator"></div>
-  <article>
-    <header>
-      <h2><a href="https://phofl.github.io/pyarrow-pandas-dask.html">Utilizing PyArrow to improve pandas and Dask workflows</a></h2>
-      <time datetime="" title="2023-06-05T00:00:00+02:00" pubdate>Mon 05 June 2023</time>
-    </header>
-
-    <div class="article_content">
-      <p><em>Get the most out of PyArrow support in pandas and Dask right now</em></p>
-<p><img alt="" src="../images/arrow_backend/title.svg"></p>
-<h2 id="introduction">Introduction</h2>
-<p>This post investigates where we can use PyArrow to improve our pandas and Dask workflows right now.
-General support for PyArrow dtypes was added with pandas 2.0 to <a href="https://pandas.pydata.org">pandas</a> 
-and <a href="https://www.dask.org?utm_source=phofl&amp;utm_medium=pyarrow-in-pandas-and-dask">Dask</a>. This solves a
-bunch …</p>
-    </div>
-
-    <div class="meta">
-      <div>
-        <a href="https://phofl.github.io/pyarrow-pandas-dask.html" class="read_more">Read more &#8594;</a>
-      </div>
-
-      <div>
-            <a href="https://phofl.github.io/tag/pandas.html" class="tag">pandas</a>
-            <a href="https://phofl.github.io/tag/dask.html" class="tag">dask</a>
-      </div>
-
-    </div>
-
-  </article>
-  <div class="separator"></div>
-  <article>
-    <header>
-      <h2><a href="https://phofl.github.io/pandas-20.html">Welcoming pandas 2.0</a></h2>
-      <time datetime="" title="2023-03-23T00:00:00+01:00" pubdate>Thu 23 March 2023</time>
-    </header>
-
-    <div class="article_content">
-      <p><em>How the API is changing and how to leverage new functionalities</em></p>
-<h2 id="introduction">Introduction</h2>
-<p>After 3 years of development, the second pandas 2.0 release candidate was released on the 16th of 
-March. There are many new features in pandas 2.0, including improved extension array
-support, pyarrow support for DataFrames and …</p>
-    </div>
-
-    <div class="meta">
-      <div>
-        <a href="https://phofl.github.io/pandas-20.html" class="read_more">Read more &#8594;</a>
-      </div>
-
-      <div>
-            <a href="https://phofl.github.io/tag/pandas.html" class="tag">pandas</a>
-      </div>
-
-    </div>
-
-  </article>
-  <div class="separator"></div>
-  <article>
-    <header>
-      <h2><a href="https://phofl.github.io/indexing-copy-view.html">A guide to efficient data selection in pandas</a></h2>
-      <time datetime="" title="2023-02-10T00:00:00+01:00" pubdate>Fri 10 February 2023</time>
-    </header>
-
-    <div class="article_content">
-      <p><em>Improve performance when selecting data from a pandas object</em></p>
-<h2 id="introduction">Introduction</h2>
-<p>There exist different ways of selecting a subset of data from a pandas object. Depending
-on the specific operation, the result will either be a view pointing to the original
-data or a copy of the original data. This ties …</p>
-    </div>
-
-    <div class="meta">
-      <div>
-        <a href="https://phofl.github.io/indexing-copy-view.html" class="read_more">Read more &#8594;</a>
-      </div>
-
-      <div>
-            <a href="https://phofl.github.io/tag/pandas.html" class="tag">pandas</a>
-      </div>
-
-    </div>
-
-  </article>
-  <div class="separator"></div>
-  <article>
-    <header>
-      <h2><a href="https://phofl.github.io/cow-introduction.html">A solution for inconsistencies in indexing operations in pandas</a></h2>
-      <time datetime="" title="2022-12-23T00:00:00+01:00" pubdate>Fri 23 December 2022</time>
-    </header>
-
-    <div class="article_content">
-      <p><em>Get rid of annoying SettingWithCopyWarning messages</em></p>
-<h2 id="introduction">Introduction</h2>
-<p>Indexing operations in pandas are quite flexible and thus, have many cases that can behave quite 
-different and therefore produce unexpected results. Additionally, it is hard to predict when a 
-<code>SettingWithCopyWarningis</code> raised and what this means exactly. I’ll show a couple of …</p>
-    </div>
-
-    <div class="meta">
-      <div>
-        <a href="https://phofl.github.io/cow-introduction.html" class="read_more">Read more &#8594;</a>
-      </div>
-
-      <div>
-            <a href="https://phofl.github.io/tag/pandas.html" class="tag">pandas</a>
-      </div>
-
-    </div>
-
-  </article>
-  <div class="separator"></div>
-
-  <nav class="pagination row">
-    <div class="col-xs-6 left">
-    </div>
-    <div class="col-xs-6 right">
-    </div>
-  </nav>
-
-  </div>
 
 </div>
+
+<style type="text/css">
+{
+    max-width: 700px;
+}
+
+.text_cell .prompt {
+    display: none;
+}
+
+div.cell {
+    padding: 0;
+}
+
+div.text_cell_render {
+    padding: 0;
+}
+
+div.prompt {
+    font-size: 13px;
+}
+
+div.input_prompt {
+    padding: .7em 0.2em;
+}
+
+div.output_prompt {
+    padding: .4em .2em;
+}
+
+div.input_area {
+    margin: .2em 0.4em;
+    max-width: 580px;
+}
+
+table.dataframe {
+    font-family: Arial, sans-serif;
+    font-size: 13px;
+    line-height: 20px;
+}
+
+table.dataframe th, td {
+    padding: 4px;
+    text-align: left;
+}
+
+pre code {
+    background-color: inherit;
+}</style>
 
         </div>
     <footer>
