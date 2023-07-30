@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<rss version="2.0"><channel><title>Patrick Hoefler</title><link>https://phofl.github.io/</link><description></description><lastBuildDate>Fri, 21 Jul 2023 00:00:00 +0200</lastBuildDate><item><title>pandas Internals Explained</title><link>https://phofl.github.io/pandas-internals.html</link><description>&lt;p&gt;&lt;em&gt;Explaining the pandas data model and its advantages&lt;/em&gt;&lt;/p&gt;
+<rss version="2.0"><channel><title>Patrick Hoefler</title><link>https://phofl.github.io/</link><description></description><lastBuildDate>Mon, 24 Jul 2023 00:00:00 +0200</lastBuildDate><item><title>How to Train a Neural Network on a GPU in the Cloud with ``coiled functions``</title><link>https://phofl.github.io/coiled-functions-pytorch.html</link><description>&lt;p&gt;&lt;img alt="" src="../images/coiled_run/coiled-run-pytorch.png"&gt;&lt;/p&gt;
+&lt;p&gt;We recently pushed out two new and experimental features &lt;a href="https://docs.coiled.io/user_guide/labs/jobs.html?utm_source=phofl&amp;amp;utm_medium=coiled-functions-gpu"&gt;coiled jobs&lt;/a&gt;
+and &lt;a href="https://docs.coiled.io/user_guide/labs/run.html?utm_source=phofl&amp;amp;utm_medium=coiled-functions-gpu"&gt;coiled functions&lt;/a&gt;
+which is a deviation of &lt;code&gt;coiled jobs&lt;/code&gt;. We are excited about both of them because they:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Allow users to scale up any given program on any hardware in the cloud.&lt;/li&gt;
+&lt;li&gt;Make GPUs easily accessible without going …&lt;/li&gt;&lt;/ul&gt;</description><dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Patrick Hoefler</dc:creator><pubDate>Mon, 24 Jul 2023 00:00:00 +0200</pubDate><guid isPermaLink="false">tag:phofl.github.io,2023-07-24:/coiled-functions-pytorch.html</guid><category>posts</category><category>[coiled</category><category>jobs</category><category>gpu</category><category>machine learning]</category></item><item><title>pandas Internals Explained</title><link>https://phofl.github.io/pandas-internals.html</link><description>&lt;p&gt;&lt;em&gt;Explaining the pandas data model and its advantages&lt;/em&gt;&lt;/p&gt;
 &lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
 &lt;p&gt;pandas enables you to choose between different types of arrays to represent the data of your
 DataFrame. Historically, most DataFrames are backed by NumPy arrays. &lt;a href="https://medium.com/gitconnected/welcoming-pandas-2-0-194094e4275b"&gt;pandas 2.0 introduced the 
