@@ -1,7 +1,7 @@
 ---
-title: How to Train a Neural Network on a GPU in the Cloud with ``coiled functions``
+title: How to Train a Neural Network on a GPU in the Cloud with coiled functions
 date: 2023-07-24
-tags: [coiled, jobs, gpu, machine learning]
+tags: coiled, jobs, gpu, machine learning
 slug: coiled-functions-pytorch
 ---
 
