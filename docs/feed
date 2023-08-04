@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<rss version="2.0"><channel><title>Patrick Hoefler</title><link>https://phofl.github.io/</link><description></description><lastBuildDate>Mon, 24 Jul 2023 00:00:00 +0200</lastBuildDate><item><title>How to Train a Neural Network on a GPU in the Cloud with coiled functions</title><link>https://phofl.github.io/coiled-functions-pytorch.html</link><description>&lt;p&gt;&lt;img alt="" src="../images/coiled_run/coiled-run-pytorch.png"&gt;&lt;/p&gt;
+<rss version="2.0"><channel><title>Patrick Hoefler</title><link>https://phofl.github.io/</link><description></description><lastBuildDate>Fri, 04 Aug 2023 00:00:00 +0200</lastBuildDate><item><title>High Level Query Optimization in Dask</title><link>https://phofl.github.io/high-level-query-optimization-in-dask.html</link><description>&lt;p&gt;&lt;img alt="" src="../images/dask-expr/dask-expr-introduction-title.png"&gt;&lt;/p&gt;
+&lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
+&lt;p&gt;Dask DataFrame doesn't currently optimize your code for you (like Spark or a SQL database would). 
+This means that users waste a lot of computation. Let's look at a common example
+which looks ok at first glance, but is actually pretty inefficient.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;import dask.dataframe as dd
+
+df = dd …&lt;/code&gt;&lt;/pre&gt;</description><dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Patrick Hoefler</dc:creator><pubDate>Fri, 04 Aug 2023 00:00:00 +0200</pubDate><guid isPermaLink="false">tag:phofl.github.io,2023-08-04:/high-level-query-optimization-in-dask.html</guid><category>posts</category><category>dask</category><category>query optimizer</category><category>performance</category></item><item><title>How to Train a Neural Network on a GPU in the Cloud with coiled functions</title><link>https://phofl.github.io/coiled-functions-pytorch.html</link><description>&lt;p&gt;&lt;img alt="" src="../images/coiled_run/coiled-run-pytorch.png"&gt;&lt;/p&gt;
 &lt;p&gt;We recently pushed out two new and experimental features &lt;a href="https://docs.coiled.io/user_guide/labs/jobs.html?utm_source=phofl&amp;amp;utm_medium=coiled-functions-gpu"&gt;coiled jobs&lt;/a&gt;
 and &lt;a href="https://docs.coiled.io/user_guide/labs/run.html?utm_source=phofl&amp;amp;utm_medium=coiled-functions-gpu"&gt;coiled functions&lt;/a&gt;
 which is a deviation of &lt;code&gt;coiled jobs&lt;/code&gt;. We are excited about both of them because they:&lt;/p&gt;
