@@ -7,12 +7,6 @@
     <article>
         <h1 style="margin-bottom: 30px;">Archives and tags</h1>
 
-        <div class="meta" style="margin-bottom: 30px;">
-            {% for tag, articles in tags %}
-                <a href="{{ SITEURL }}/{{ tag.url }}" class="tag">{{ tag }} ({{ articles | length }})</a>
-            {% endfor %}
-        </div>
-
         <ul class="double-list">
         {% for article in articles %}
             <li>
@@ -23,6 +17,12 @@
             </li>
         {% endfor %}
         </ul>
+
+        <div class="meta" style="margin-bottom: 30px;">
+            {% for tag, articles in tags %}
+                <a href="{{ SITEURL }}/{{ tag.url }}" class="tag">{{ tag }} ({{ articles | length }})</a>
+            {% endfor %}
+        </div>
     </article>
 </div>
 {% endblock %}
