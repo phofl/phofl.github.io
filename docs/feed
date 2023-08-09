@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<rss version="2.0"><channel><title>Patrick Hoefler</title><link>https://phofl.github.io/</link><description></description><lastBuildDate>Fri, 04 Aug 2023 00:00:00 +0200</lastBuildDate><item><title>High Level Query Optimization in Dask</title><link>https://phofl.github.io/high-level-query-optimization-in-dask.html</link><description>&lt;p&gt;&lt;img alt="" src="../images/dask-expr/dask-expr-introduction-title.png"&gt;&lt;/p&gt;
+<rss version="2.0"><channel><title>Patrick Hoefler</title><link>https://phofl.github.io/</link><description></description><lastBuildDate>Mon, 07 Aug 2023 00:00:00 +0200</lastBuildDate><item><title>Process hundreds of GB of data with Coiled Functions and DuckDB</title><link>https://phofl.github.io/coiled-functions-duckdb.html</link><description>&lt;p&gt;&lt;img alt="" src="../images/duckdb-coiled-functions.png"&gt;&lt;/p&gt;
+&lt;p&gt;We recently pushed out two new and experimental features &lt;a href="https://docs.coiled.io/user_guide/labs/jobs.html"&gt;Coiled Jobs&lt;/a&gt;
+and &lt;a href="https://docs.coiled.io/user_guide/labs/run.html"&gt;Coiled Functions&lt;/a&gt;
+for easily running scripts and functions in the cloud.&lt;/p&gt;
+&lt;p&gt;In this post we'll use Coiled Functions to process the 150 GB &lt;a href="https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page"&gt;Uber-Lyft dataset&lt;/a&gt; 
+on a single machine with &lt;a href="https://duckdb.org"&gt;DuckDB&lt;/a&gt;.&lt;/p&gt;
+&lt;h2 id="getting-started"&gt;Getting started&lt;/h2&gt;
+&lt;p&gt;We start with creating the …&lt;/p&gt;</description><dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Patrick Hoefler</dc:creator><pubDate>Mon, 07 Aug 2023 00:00:00 +0200</pubDate><guid isPermaLink="false">tag:phofl.github.io,2023-08-07:/coiled-functions-duckdb.html</guid><category>posts</category><category>coiled</category><category>jobs</category><category>duckdb</category></item><item><title>High Level Query Optimization in Dask</title><link>https://phofl.github.io/high-level-query-optimization-in-dask.html</link><description>&lt;p&gt;&lt;img alt="" src="../images/dask-expr/dask-expr-introduction-title.png"&gt;&lt;/p&gt;
 &lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
 &lt;p&gt;Dask DataFrame doesn't currently optimize your code for you (like Spark or a SQL database would). 
 This means that users waste a lot of computation. Let's look at a common example

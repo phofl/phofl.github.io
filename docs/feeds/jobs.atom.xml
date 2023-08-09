@@ -1,5 +1,132 @@
 <?xml version="1.0" encoding="utf-8"?>
-<feed xmlns="http://www.w3.org/2005/Atom"><title>Patrick Hoefler - jobs</title><link href="https://phofl.github.io/" rel="alternate"></link><link href="https://phofl.github.io/feeds/jobs.atom.xml" rel="self"></link><id>https://phofl.github.io/</id><updated>2023-07-24T00:00:00+02:00</updated><entry><title>How to Train a Neural Network on a GPU in the Cloud with coiled functions</title><link href="https://phofl.github.io/coiled-functions-pytorch.html" rel="alternate"></link><published>2023-07-24T00:00:00+02:00</published><updated>2023-07-24T00:00:00+02:00</updated><author><name>Patrick Hoefler</name></author><id>tag:phofl.github.io,2023-07-24:/coiled-functions-pytorch.html</id><summary type="html">&lt;p&gt;&lt;img alt="" src="../images/coiled_run/coiled-run-pytorch.png"&gt;&lt;/p&gt;
+<feed xmlns="http://www.w3.org/2005/Atom"><title>Patrick Hoefler - jobs</title><link href="https://phofl.github.io/" rel="alternate"></link><link href="https://phofl.github.io/feeds/jobs.atom.xml" rel="self"></link><id>https://phofl.github.io/</id><updated>2023-08-07T00:00:00+02:00</updated><entry><title>Process hundreds of GB of data with Coiled Functions and DuckDB</title><link href="https://phofl.github.io/coiled-functions-duckdb.html" rel="alternate"></link><published>2023-08-07T00:00:00+02:00</published><updated>2023-08-07T00:00:00+02:00</updated><author><name>Patrick Hoefler</name></author><id>tag:phofl.github.io,2023-08-07:/coiled-functions-duckdb.html</id><summary type="html">&lt;p&gt;&lt;img alt="" src="../images/duckdb-coiled-functions.png"&gt;&lt;/p&gt;
+&lt;p&gt;We recently pushed out two new and experimental features &lt;a href="https://docs.coiled.io/user_guide/labs/jobs.html"&gt;Coiled Jobs&lt;/a&gt;
+and &lt;a href="https://docs.coiled.io/user_guide/labs/run.html"&gt;Coiled Functions&lt;/a&gt;
+for easily running scripts and functions in the cloud.&lt;/p&gt;
+&lt;p&gt;In this post we'll use Coiled Functions to process the 150 GB &lt;a href="https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page"&gt;Uber-Lyft dataset&lt;/a&gt; 
+on a single machine with &lt;a href="https://duckdb.org"&gt;DuckDB&lt;/a&gt;.&lt;/p&gt;
+&lt;h2 id="getting-started"&gt;Getting started&lt;/h2&gt;
+&lt;p&gt;We start with creating the …&lt;/p&gt;</summary><content type="html">&lt;p&gt;&lt;img alt="" src="../images/duckdb-coiled-functions.png"&gt;&lt;/p&gt;
+&lt;p&gt;We recently pushed out two new and experimental features &lt;a href="https://docs.coiled.io/user_guide/labs/jobs.html"&gt;Coiled Jobs&lt;/a&gt;
+and &lt;a href="https://docs.coiled.io/user_guide/labs/run.html"&gt;Coiled Functions&lt;/a&gt;
+for easily running scripts and functions in the cloud.&lt;/p&gt;
+&lt;p&gt;In this post we'll use Coiled Functions to process the 150 GB &lt;a href="https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page"&gt;Uber-Lyft dataset&lt;/a&gt; 
+on a single machine with &lt;a href="https://duckdb.org"&gt;DuckDB&lt;/a&gt;.&lt;/p&gt;
+&lt;h2 id="getting-started"&gt;Getting started&lt;/h2&gt;
+&lt;p&gt;We start with creating the SQL queries that we want to run against the data locally. &lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;def load_data(conn):
+  # Load data into memory so that subsequent queries are fast
+  conn.execute(
+    '''
+    CREATE TABLE test AS 
+    SELECT * FROM read_parquet(&amp;quot;s3://coiled-datasets/uber-lyft-tlc/*&amp;quot;)
+    '''
+  )
+
+
+def compute_percentage_of_tipped_rides(conn):
+    # Run the actual query
+   return conn.execute(
+       '''
+       SELECT hvfhs_license_num, sum(tipped) / count(tipped)
+        FROM (select 
+           *,  
+           CASE WHEN tips &amp;gt; 0.0 then 1 ELSE 0 end as tipped
+           from test) GROUP BY hvfhs_license_num
+       '''
+   ).fetchall()
+
+
+def create_conn():
+    import duckdb
+
+    return duckdb.connect()
+
+
+def query_results():
+    conn = create_conn()
+    load_data(conn)
+    return compute_percentage_of_tipped_rides(conn)
+
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;These queries aren't particularly fancy, they are meant to illustrate how we can process these
+files. If we execute these queries as is, it would pull all the data onto our machine. The whole
+dataset won't fit into memory on most workstations, so let's look at how Coiled can make this work. The loading
+would take a long time, even if we had enough memory.&lt;/p&gt;
+&lt;h2 id="using-coiled-functions-to-run-queries-on-a-large-vm"&gt;Using &lt;code&gt;coiled functions&lt;/code&gt; to run queries on a large VM&lt;/h2&gt;
+&lt;p&gt;&lt;a href="https://docs.coiled.io/user_guide/labs/run.html"&gt;Coiled Functions&lt;/a&gt; come into the equation since we 
+need access to machines that have enough resources and are also close to our data. 
+Coiled can connect to AWS or GCP and thus, use all resources that are available there.
+We will go through the necessary steps execute these queries on a VM in the same region as our data
+with enough memory available.&lt;/p&gt;
+&lt;p&gt;We'll have to adapt our &lt;code&gt;create_conn&lt;/code&gt; function to set 
+&lt;a href="https://duckdb.org/docs/guides/import/s3_import.html"&gt;the environment variables needed by DuckDB&lt;/a&gt;.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;def create_conn():
+    import duckdb
+
+    conn = duckdb.connect()
+    conn.execute(&amp;quot;INSTALL httpfs&amp;quot;)
+    conn.execute(&amp;quot;LOAD httpfs&amp;quot;)
+    conn.execute(f&amp;quot;SET s3_region='us-east-2'&amp;quot;)
+    conn.execute(f&amp;quot;SET s3_access_key_id='{os.environ['AWS_ACCESS_KEY_ID']}'&amp;quot;)
+    conn.execute(f&amp;quot;SET s3_secret_access_key='{os.environ['AWS_SECRET_ACCESS_KEY']}'&amp;quot;)
+    return conn
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;There will be &lt;a href="https://github.com/duckdblabs/duckdb_aws"&gt;an extension for DuckDB&lt;/a&gt; that can take 
+care of this automatically starting from DuckDB 0.9.0.&lt;/p&gt;
+&lt;p&gt;The next step is adding the &lt;code&gt;@coiled.function&lt;/code&gt; decorator to the function that executes our queries.
+The decorator will tell Coiled that it should spin up a large VM on AWS and run the query there, and then return the result locally.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;@coiled.function(
+    vm_type=&amp;quot;m6i.16xlarge&amp;quot;, # 256 GB of RAM
+    region=&amp;quot;us-east-2&amp;quot;,     # region of our data
+    keepalive=&amp;quot;5 minutes&amp;quot;,  # keep alive to run multiple queries if necessary
+)
+def query_results():
+    conn = create_conn()
+    load_data(conn)
+    return compute_percentage_of_tipped_rides(conn)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Let's execute our queries and pull the results back to our local machine:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;result = query_results()
+
+print(result)
+[
+  ('HV0005', 0.1912300216459857), 
+  ('HV0003', 0.1498555901186066), 
+  ('HV0004', 0.09294857737045926), 
+  ('HV0002', 0.08440046492889111),
+]
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;The data are now all in memory on our VM in the cloud:&lt;/p&gt;
+&lt;p&gt;&lt;img alt="" src="../images/coiled_run_duckdb_memory.png"&gt;&lt;/p&gt;
+&lt;p&gt;There is no need to adjust the other functions. Coiled will run our query on a VM in the cloud with
+enough resources and close to our data.&lt;/p&gt;
+&lt;p&gt;Let's take a brief look at the arguments to &lt;code&gt;coiled.function()&lt;/code&gt;:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;vm_type&lt;/code&gt;: This specifies the type of &lt;a href="https://aws.amazon.com/ec2/instance-types/"&gt;EC2 instance&lt;/a&gt;.
+  We are looking for an instance that has enough memory to hold our data. This instance has 256GB,
+  so this should be sufficient.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;region&lt;/code&gt;: The region specifies the AWS region that our VM is started in. Our data are also in
+  &lt;code&gt;"us-east-2"&lt;/code&gt;.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;keepalive&lt;/code&gt;: Keeps the VM alive so that we can run multiple queries against the data in memory.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;code&gt;coiled.function()&lt;/code&gt; will now start a VM in AWS with the specified EC2 instance. The VM is normally up
+and running in 1-2 minutes. Coiled will scan our local environment and replicate the same 
+dependencies on this machine. We don't have to specify an explicit Python environment. Inputs of 
+your function are serialized and sent to the VM
+as well. Coiled will return our results back to our local machine.&lt;/p&gt;
+&lt;p&gt;Coiled would normally shut down the VM immediately after the Python interpreter finishes. This is mostly to
+reduce costs. We specified
+&lt;code&gt;keepalive="5 minutes"&lt;/code&gt; to keep the VM alive for a few of minutes after our Python interpreter
+finished. This ensures that new local runs can connect to the same VM avoiding
+the boot time of up to 2 minutes; we call this a warm start.&lt;/p&gt;
+&lt;h2 id="conclusion"&gt;Conclusion&lt;/h2&gt;
+&lt;p&gt;&lt;code&gt;coiled functions&lt;/code&gt; enables you to run queries on a machine with as much memory as you want.
+This grants you access to computational resources that can be very close to your data. Doing
+data processing in the cloud becomes very easy with this functionality.&lt;/p&gt;
+&lt;p&gt;You can check out the &lt;a href="https://docs.coiled.io/user_guide/labs/functions.html"&gt;docs&lt;/a&gt; 
+or take a look at how to utilize Coiled Functions to train
+a &lt;a href="https://medium.com/coiled-hq/how-to-train-a-neural-network-on-a-gpu-in-the-cloud-with-coiled-functions-40fa9aca723b"&gt;neural network on a powerful GPU&lt;/a&gt;.&lt;/p&gt;</content><category term="posts"></category><category term="coiled"></category><category term="jobs"></category><category term="duckdb"></category></entry><entry><title>How to Train a Neural Network on a GPU in the Cloud with coiled functions</title><link href="https://phofl.github.io/coiled-functions-pytorch.html" rel="alternate"></link><published>2023-07-24T00:00:00+02:00</published><updated>2023-07-24T00:00:00+02:00</updated><author><name>Patrick Hoefler</name></author><id>tag:phofl.github.io,2023-07-24:/coiled-functions-pytorch.html</id><summary type="html">&lt;p&gt;&lt;img alt="" src="../images/coiled_run/coiled-run-pytorch.png"&gt;&lt;/p&gt;
 &lt;p&gt;We recently pushed out two new and experimental features &lt;a href="https://docs.coiled.io/user_guide/labs/jobs.html?utm_source=phofl&amp;amp;utm_medium=coiled-functions-gpu"&gt;coiled jobs&lt;/a&gt;
 and &lt;a href="https://docs.coiled.io/user_guide/labs/run.html?utm_source=phofl&amp;amp;utm_medium=coiled-functions-gpu"&gt;coiled functions&lt;/a&gt;
 which is a deviation of &lt;code&gt;coiled jobs&lt;/code&gt;. We are excited about both of them because they:&lt;/p&gt;

@@ -6,7 +6,7 @@
         <meta name="author" content="Patrick Hoefler">
         <meta name="description" content="">
         <meta name="viewport" content="width=device-width">
-        <title>Patrick Hoefler - Categories | Patrick Hoefler</title>
+        <title>Process hundreds of GB of data with Coiled Functions and DuckDB | Patrick Hoefler</title>
 
 	<link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
 	<link rel="icon" href="/favicon.ico" type="image/x-icon">
@@ -406,10 +406,202 @@ article .meta a.comments_btn:hover {
         </header>
 
         <div id="wrap">
-    <h1>Categories on Patrick Hoefler</h1>
-    <ul>
-        <li><a href="https://phofl.github.io/category/posts.html">posts</a> (10)</li>
-    </ul>
+<div class="container post">
+    <article>
+        <header>
+            <h1>Process hundreds of GB of data with Coiled Functions and DuckDB</h1>
+            <time datetime="article.date.isoformat()" pubdate>Mon 07 August 2023</time>
+        </header>
+
+        <div class="article_content">
+            <p><img alt="" src="../images/duckdb-coiled-functions.png"></p>
+<p>We recently pushed out two new and experimental features <a href="https://docs.coiled.io/user_guide/labs/jobs.html">Coiled Jobs</a>
+and <a href="https://docs.coiled.io/user_guide/labs/run.html">Coiled Functions</a>
+for easily running scripts and functions in the cloud.</p>
+<p>In this post we'll use Coiled Functions to process the 150 GB <a href="https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page">Uber-Lyft dataset</a> 
+on a single machine with <a href="https://duckdb.org">DuckDB</a>.</p>
+<h2 id="getting-started">Getting started</h2>
+<p>We start with creating the SQL queries that we want to run against the data locally. </p>
+<pre><code class="language-python">def load_data(conn):
+  # Load data into memory so that subsequent queries are fast
+  conn.execute(
+    '''
+    CREATE TABLE test AS 
+    SELECT * FROM read_parquet(&quot;s3://coiled-datasets/uber-lyft-tlc/*&quot;)
+    '''
+  )
+
+
+def compute_percentage_of_tipped_rides(conn):
+    # Run the actual query
+   return conn.execute(
+       '''
+       SELECT hvfhs_license_num, sum(tipped) / count(tipped)
+        FROM (select 
+           *,  
+           CASE WHEN tips &gt; 0.0 then 1 ELSE 0 end as tipped
+           from test) GROUP BY hvfhs_license_num
+       '''
+   ).fetchall()
+
+
+def create_conn():
+    import duckdb
+
+    return duckdb.connect()
+
+
+def query_results():
+    conn = create_conn()
+    load_data(conn)
+    return compute_percentage_of_tipped_rides(conn)
+
+</code></pre>
+<p>These queries aren't particularly fancy, they are meant to illustrate how we can process these
+files. If we execute these queries as is, it would pull all the data onto our machine. The whole
+dataset won't fit into memory on most workstations, so let's look at how Coiled can make this work. The loading
+would take a long time, even if we had enough memory.</p>
+<h2 id="using-coiled-functions-to-run-queries-on-a-large-vm">Using <code>coiled functions</code> to run queries on a large VM</h2>
+<p><a href="https://docs.coiled.io/user_guide/labs/run.html">Coiled Functions</a> come into the equation since we 
+need access to machines that have enough resources and are also close to our data. 
+Coiled can connect to AWS or GCP and thus, use all resources that are available there.
+We will go through the necessary steps execute these queries on a VM in the same region as our data
+with enough memory available.</p>
+<p>We'll have to adapt our <code>create_conn</code> function to set 
+<a href="https://duckdb.org/docs/guides/import/s3_import.html">the environment variables needed by DuckDB</a>.</p>
+<pre><code class="language-python">def create_conn():
+    import duckdb
+
+    conn = duckdb.connect()
+    conn.execute(&quot;INSTALL httpfs&quot;)
+    conn.execute(&quot;LOAD httpfs&quot;)
+    conn.execute(f&quot;SET s3_region='us-east-2'&quot;)
+    conn.execute(f&quot;SET s3_access_key_id='{os.environ['AWS_ACCESS_KEY_ID']}'&quot;)
+    conn.execute(f&quot;SET s3_secret_access_key='{os.environ['AWS_SECRET_ACCESS_KEY']}'&quot;)
+    return conn
+</code></pre>
+<p>There will be <a href="https://github.com/duckdblabs/duckdb_aws">an extension for DuckDB</a> that can take 
+care of this automatically starting from DuckDB 0.9.0.</p>
+<p>The next step is adding the <code>@coiled.function</code> decorator to the function that executes our queries.
+The decorator will tell Coiled that it should spin up a large VM on AWS and run the query there, and then return the result locally.</p>
+<pre><code class="language-python">@coiled.function(
+    vm_type=&quot;m6i.16xlarge&quot;, # 256 GB of RAM
+    region=&quot;us-east-2&quot;,     # region of our data
+    keepalive=&quot;5 minutes&quot;,  # keep alive to run multiple queries if necessary
+)
+def query_results():
+    conn = create_conn()
+    load_data(conn)
+    return compute_percentage_of_tipped_rides(conn)
+</code></pre>
+<p>Let's execute our queries and pull the results back to our local machine:</p>
+<pre><code class="language-python">result = query_results()
+
+print(result)
+[
+  ('HV0005', 0.1912300216459857), 
+  ('HV0003', 0.1498555901186066), 
+  ('HV0004', 0.09294857737045926), 
+  ('HV0002', 0.08440046492889111),
+]
+</code></pre>
+<p>The data are now all in memory on our VM in the cloud:</p>
+<p><img alt="" src="../images/coiled_run_duckdb_memory.png"></p>
+<p>There is no need to adjust the other functions. Coiled will run our query on a VM in the cloud with
+enough resources and close to our data.</p>
+<p>Let's take a brief look at the arguments to <code>coiled.function()</code>:</p>
+<ul>
+<li><code>vm_type</code>: This specifies the type of <a href="https://aws.amazon.com/ec2/instance-types/">EC2 instance</a>.
+  We are looking for an instance that has enough memory to hold our data. This instance has 256GB,
+  so this should be sufficient.</li>
+<li><code>region</code>: The region specifies the AWS region that our VM is started in. Our data are also in
+  <code>"us-east-2"</code>.</li>
+<li><code>keepalive</code>: Keeps the VM alive so that we can run multiple queries against the data in memory.</li>
+</ul>
+<p><code>coiled.function()</code> will now start a VM in AWS with the specified EC2 instance. The VM is normally up
+and running in 1-2 minutes. Coiled will scan our local environment and replicate the same 
+dependencies on this machine. We don't have to specify an explicit Python environment. Inputs of 
+your function are serialized and sent to the VM
+as well. Coiled will return our results back to our local machine.</p>
+<p>Coiled would normally shut down the VM immediately after the Python interpreter finishes. This is mostly to
+reduce costs. We specified
+<code>keepalive="5 minutes"</code> to keep the VM alive for a few of minutes after our Python interpreter
+finished. This ensures that new local runs can connect to the same VM avoiding
+the boot time of up to 2 minutes; we call this a warm start.</p>
+<h2 id="conclusion">Conclusion</h2>
+<p><code>coiled functions</code> enables you to run queries on a machine with as much memory as you want.
+This grants you access to computational resources that can be very close to your data. Doing
+data processing in the cloud becomes very easy with this functionality.</p>
+<p>You can check out the <a href="https://docs.coiled.io/user_guide/labs/functions.html">docs</a> 
+or take a look at how to utilize Coiled Functions to train
+a <a href="https://medium.com/coiled-hq/how-to-train-a-neural-network-on-a-gpu-in-the-cloud-with-coiled-functions-40fa9aca723b">neural network on a powerful GPU</a>.</p>
+        </div>
+
+        <div class="meta">
+            <div>
+                    <a href="https://phofl.github.io/tag/coiled.html" class="tag">coiled</a>
+                    <a href="https://phofl.github.io/tag/jobs.html" class="tag">jobs</a>
+                    <a href="https://phofl.github.io/tag/duckdb.html" class="tag">duckdb</a>
+            </div>
+            <div>
+                <a style="font-size:14pt;color: black;">Authors: </a>
+                    <a style="font-size:14pt;color: black;">Patrick Hoefler        </a>
+            </div>
+        </div>
+    </article>
+
+
+</div>
+
+<style type="text/css">
+{
+    max-width: 700px;
+}
+
+.text_cell .prompt {
+    display: none;
+}
+
+div.cell {
+    padding: 0;
+}
+
+div.text_cell_render {
+    padding: 0;
+}
+
+div.prompt {
+    font-size: 13px;
+}
+
+div.input_prompt {
+    padding: .7em 0.2em;
+}
+
+div.output_prompt {
+    padding: .4em .2em;
+}
+
+div.input_area {
+    margin: .2em 0.4em;
+    max-width: 580px;
+}
+
+table.dataframe {
+    font-family: Arial, sans-serif;
+    font-size: 13px;
+    line-height: 20px;
+}
+
+table.dataframe th, td {
+    padding: 4px;
+    text-align: left;
+}
+
+pre code {
+    background-color: inherit;
+}</style>
+
         </div>
     <footer>
       <section class="author">
