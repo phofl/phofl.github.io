@@ -1,5 +1,193 @@
 <?xml version="1.0" encoding="utf-8"?>
-<feed xmlns="http://www.w3.org/2005/Atom"><title>Patrick Hoefler - pandas</title><link href="https://phofl.github.io/" rel="alternate"></link><link href="https://phofl.github.io/feeds/pandas.atom.xml" rel="self"></link><id>https://phofl.github.io/</id><updated>2023-07-21T00:00:00+02:00</updated><entry><title>pandas Internals Explained</title><link href="https://phofl.github.io/pandas-internals.html" rel="alternate"></link><published>2023-07-21T00:00:00+02:00</published><updated>2023-07-21T00:00:00+02:00</updated><author><name>Patrick Hoefler</name></author><id>tag:phofl.github.io,2023-07-21:/pandas-internals.html</id><summary type="html">&lt;p&gt;&lt;em&gt;Explaining the pandas data model and its advantages&lt;/em&gt;&lt;/p&gt;
+<feed xmlns="http://www.w3.org/2005/Atom"><title>Patrick Hoefler - pandas</title><link href="https://phofl.github.io/" rel="alternate"></link><link href="https://phofl.github.io/feeds/pandas.atom.xml" rel="self"></link><id>https://phofl.github.io/</id><updated>2023-08-09T00:00:00+02:00</updated><entry><title>Deep Dive into pandas Copy-on-Write Mode - Part I</title><link href="https://phofl.github.io/cow-deep-dive.html" rel="alternate"></link><published>2023-08-09T00:00:00+02:00</published><updated>2023-08-09T00:00:00+02:00</updated><author><name>Patrick Hoefler</name></author><id>tag:phofl.github.io,2023-08-09:/cow-deep-dive.html</id><summary type="html">&lt;p&gt;&lt;em&gt;Explaining how Copy-on-Write works internally&lt;/em&gt;&lt;/p&gt;
+&lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
+&lt;p&gt;&lt;a href="https://medium.com/gitconnected/welcoming-pandas-2-0-194094e4275b"&gt;pandas 2.0&lt;/a&gt; was released in 
+early April and brought many improvements to the new Copy-on-Write (CoW)
+mode. The feature is expected to become the default in pandas 3.0, which is scheduled for
+April 2024 at the moment. There are no plans for …&lt;/p&gt;</summary><content type="html">&lt;p&gt;&lt;em&gt;Explaining how Copy-on-Write works internally&lt;/em&gt;&lt;/p&gt;
+&lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
+&lt;p&gt;&lt;a href="https://medium.com/gitconnected/welcoming-pandas-2-0-194094e4275b"&gt;pandas 2.0&lt;/a&gt; was released in 
+early April and brought many improvements to the new Copy-on-Write (CoW)
+mode. The feature is expected to become the default in pandas 3.0, which is scheduled for
+April 2024 at the moment. There are no plans for a legacy or non-CoW mode.&lt;/p&gt;
+&lt;p&gt;This series of posts will explain how Copy-on-Write works internally to help users understand what's 
+going on, show how to use it effectively and illustrate how to adapt your code. This will include 
+examples on how to leverage the mechanism to get the most efficient performance and also show a 
+couple of anti-patterns that will result in unnecessary bottlenecks. I wrote a 
+&lt;a href="https://medium.com/towards-data-science/a-solution-for-inconsistencies-in-indexing-operations-in-pandas-b76e10719744"&gt;short introduction&lt;/a&gt;
+to Copy-on-Write a couple of months ago.&lt;/p&gt;
+&lt;p&gt;I wrote &lt;a href="https://medium.com/better-programming/pandas-internals-explained-545f14a941c1"&gt;a short post&lt;/a&gt; 
+that explains the data structure of pandas which will help understand some terminology that is 
+necessary for CoW.&lt;/p&gt;
+&lt;p&gt;I am part of the pandas core team and was heavily involved in implementing and improving CoW so far. 
+I am an open source engineer for &lt;a href="https://www.coiled.io"&gt;Coiled&lt;/a&gt; where I work on Dask, 
+including improving the pandas integration and ensuring that Dask is compliant with CoW.&lt;/p&gt;
+&lt;h1 id="how-copy-on-write-changes-pandas-behavior"&gt;How Copy-on-Write changes pandas behavior&lt;/h1&gt;
+&lt;p&gt;Many of you are probably familiar with the following caveats in pandas:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;import pandas as pd
+
+df = pd.DataFrame({&amp;quot;student_id&amp;quot;: [1, 2, 3], &amp;quot;grade&amp;quot;: [&amp;quot;A&amp;quot;, &amp;quot;C&amp;quot;, &amp;quot;D&amp;quot;]})
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Let's select the grade-column and overwrite the first row with &lt;code&gt;"E"&lt;/code&gt;.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;grades = df[&amp;quot;grade&amp;quot;]
+grades.iloc[0] = &amp;quot;E&amp;quot;
+df
+
+   student_id grade
+0           1     E
+1           2     C
+2           3     D
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Unfortunately, this also updated &lt;code&gt;df&lt;/code&gt; and not only &lt;code&gt;grades&lt;/code&gt;, which has the potential to 
+introduce hard to find bugs. CoW will disallow this behavior and ensures that only &lt;code&gt;df&lt;/code&gt; is
+updated. We also see a false-positive &lt;code&gt;SettingWithCopyWarning&lt;/code&gt; that doesn't help us here.&lt;/p&gt;
+&lt;p&gt;Let's look at a &lt;code&gt;ChainedIndexing&lt;/code&gt; example that is not doing anything:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df[df[&amp;quot;student_id&amp;quot;] &amp;gt; 2][&amp;quot;grades&amp;quot;] = &amp;quot;F&amp;quot;
+df
+
+   student_id grade
+0           1     A
+1           2     C
+2           3     D
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;We again get a &lt;code&gt;SettingWithCopyWarning&lt;/code&gt; but nothing happens to &lt;code&gt;df&lt;/code&gt; in this example. All these
+gotchas come down to copy and view rules in NumPy, which is what pandas uses under the hood. pandas
+users have to be aware of these rules and how they apply to pandas DataFrames to understand why
+similar code patterns produce different results. &lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;CoW cleans up all these inconsistencies&lt;/strong&gt;. Users can only update one object at a time when CoW is
+enabled, e.g. &lt;code&gt;df&lt;/code&gt; would be unchanged in our first example since only &lt;code&gt;grades&lt;/code&gt; is updated at
+that time and the second example raises a &lt;code&gt;ChainedAssignmentError&lt;/code&gt; instead of doing nothing.
+Generally, it won't be possible to update two objects at once, e.g., every object behaves as it
+is a copy of the previous object.&lt;/p&gt;
+&lt;p&gt;There are many more of these cases, but going through all of them is not in scope here.&lt;/p&gt;
+&lt;h1 id="how-it-works"&gt;How it works&lt;/h1&gt;
+&lt;p&gt;Let's look into Copy-on-Write in more detail and highlight some facts that are good to know. This is 
+the main part of this post and is fairly technical.&lt;/p&gt;
+&lt;p&gt;Copy-on-Write promises that &lt;strong&gt;any DataFrame or Series derived from another in&lt;/strong&gt; 
+&lt;strong&gt;any way always behaves as a copy&lt;/strong&gt;. This means that it is not possible to modify more than one
+object with a single operation, e.g. our first example above would only modify &lt;code&gt;grades&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;A very defensive approach to guarantee this would be to copy the DataFrame and its data in every 
+operation, which would avoid views in pandas altogether. This would guarantee CoW semantics but 
+also incur a huge performance penalty, so this wasn't a viable option. &lt;/p&gt;
+&lt;p&gt;We will now dive into the mechanism that ensures that no two objects are updated with a single
+operation &lt;strong&gt;and&lt;/strong&gt; that our data isn't unnecessarily copied. The second part is what makes the
+implementation interesting.&lt;/p&gt;
+&lt;p&gt;We have to know exactly when to trigger a copy to avoid copies that aren't absolutely necessary.
+Potential copies are only necessary if we try to mutate the values of one pandas object without
+copying it's data. We have to
+trigger a copy, if the data of this object is shared with another pandas object.
+This means that we have to keep track of whether one NumPy array is referenced by two DataFrames (generally, we have to be
+aware if one NumPy array is referenced by two pandas objects, but I will use the term DataFrame for 
+simplicity).&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df = pd.DataFrame({&amp;quot;student_id&amp;quot;: [1, 2, 3], &amp;quot;grade&amp;quot;: [1, 2, 3]})
+df2 = df[:]
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;This statement creates a DataFrame &lt;code&gt;df&lt;/code&gt; and a view of this DataFrame &lt;code&gt;df2&lt;/code&gt;. View means that
+both DataFrames are backed by the same underlying NumPy array. When we look at this with CoW, 
+&lt;code&gt;df&lt;/code&gt; has to be aware that &lt;code&gt;df2&lt;/code&gt; references its NumPy array too. This is not sufficient 
+though. &lt;code&gt;df2&lt;/code&gt; also has to be aware that &lt;code&gt;df&lt;/code&gt; references its NumPy array. If both objects
+are aware that there is another DataFrame referencing the same NumPy array, we can trigger a copy
+in case one of them is modified, e.g.:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df.iloc[0, 0] = 100
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;&lt;code&gt;df&lt;/code&gt; is modified inplace here. &lt;code&gt;df&lt;/code&gt; knows that there is another object that references the same data, 
+e.g. it triggers a copy. It is not aware which object references the same data, just that there is
+another object out there.&lt;/p&gt;
+&lt;p&gt;Let's take a look at how we can achieve this. We created an internal class &lt;code&gt;BlockValuesRefs&lt;/code&gt; that
+is used to store this information, it points to all DataFrames that reference a given NumPy array. &lt;/p&gt;
+&lt;p&gt;There are three different types of operation that can create a DataFrame:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;A DataFrame is created from external data, e.g. through &lt;code&gt;pd.DataFrame(...)&lt;/code&gt; or through any
+  I/O method.&lt;/li&gt;
+&lt;li&gt;A new DataFrame is created through a pandas operation that triggers a copy of the original data,
+  e.g. &lt;code&gt;dropna&lt;/code&gt; creates a copy in almost all cases.&lt;/li&gt;
+&lt;li&gt;A new DataFrames is created through a pandas operation that &lt;strong&gt;does not&lt;/strong&gt; trigger a copy of the
+  original data, e.g. &lt;code&gt;df2 = df.reset_index()&lt;/code&gt;.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;The first two cases are simple. When the DataFrame is created, the NumPy arrays that back it are
+connected to a fresh &lt;code&gt;BlockValuesRefs&lt;/code&gt; object. These arrays are only referenced by the new
+object, so we don't have to keep track of any other objects. The object creates a &lt;code&gt;weakref&lt;/code&gt; that points
+to the &lt;code&gt;Block&lt;/code&gt; that wraps the NumPy array and stores this reference internally. The concept
+of Blocks is explained &lt;a href="https://medium.com/better-programming/pandas-internals-explained-545f14a941c1"&gt;here&lt;/a&gt;.&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;A &lt;a href="https://docs.python.org/3/library/weakref.html"&gt;weakref&lt;/a&gt; creates a reference to any Python
+object. It does not keep this object alive when it would normally go out of scope.&lt;/p&gt;
+&lt;p&gt;```python
+import weakref&lt;/p&gt;
+&lt;p&gt;class Dummy:
+    def &lt;strong&gt;init&lt;/strong&gt;(self, a):
+        self.a = a&lt;/p&gt;
+&lt;p&gt;In[1]: obj = Dummy(1)
+In[2]: ref = weakref.ref(obj)
+In[3]: ref()
+Out[3]: &amp;lt;&lt;strong&gt;main&lt;/strong&gt;.Dummy object at 0x108187d60&amp;gt;
+In[4]: obj = Dummy(2)
+```&lt;/p&gt;
+&lt;p&gt;This example creates a Dummy object and a weak reference to this object. Afterward, we assign another
+object to the same variable, e.g. the initial object goes out of scope and is garbage collected. The weak reference
+does not interfere with this process. If you resolve the weak reference, it will point to &lt;code&gt;None&lt;/code&gt;
+instead of the original object.&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;python
+In[5]: ref()
+Out[5]: None&lt;/code&gt;&lt;/p&gt;
+&lt;p&gt;This ensures that we don't keep any arrays alive that would otherwise be garbage collected.&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;Let's take a look at how these objects are organized:&lt;/p&gt;
+&lt;p&gt;&lt;img alt="" src="../images/deep_dive_cow/copy-on-write.svg"&gt;&lt;/p&gt;
+&lt;p&gt;Our example has two columns &lt;code&gt;"a"&lt;/code&gt; and &lt;code&gt;"b"&lt;/code&gt; which both have dtype &lt;code&gt;"int64"&lt;/code&gt;. They are backed
+by one Block that holds the data for both columns. The Block holds a hard reference to the reference
+tracking object, ensuring that it stays alive as long as the Block is not garbage collected. The
+reference tracking object holds a weak reference to the Block. This enables the object to track
+the lifecycle of this block but does not prevent garbage collection. The reference tracking object
+does not hold a weak reference to any other Block yet.&lt;/p&gt;
+&lt;p&gt;These are the easy scenarios. We know that no other pandas object shares the same NumPy array, so we can
+simply instantiate a new reference tracking object. &lt;/p&gt;
+&lt;p&gt;The third case is more complicated. The new object views the same data as the original object.
+This means that both objects point to the same memory. Our operation will create a new Block that
+references the same NumPy array, this is called a shallow copy. We now have to register this new 
+&lt;code&gt;Block&lt;/code&gt; in our reference tracking mechanism. We will register our new &lt;code&gt;Block&lt;/code&gt; with the reference 
+tracking object that is connected to the old object.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df2 = df.reset_index(drop=True)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;&lt;img alt="" src="../images/deep_dive_cow/copy-on-write_view.svg"&gt;&lt;/p&gt;
+&lt;p&gt;Our &lt;code&gt;BlockValuesRefs&lt;/code&gt; now points to the Block that backs the initial &lt;code&gt;df&lt;/code&gt; and the newly created
+Block that backs &lt;code&gt;df2&lt;/code&gt;. This ensures that we are always aware about all DataFrames that point to
+the same memory. &lt;/p&gt;
+&lt;p&gt;We can now ask the reference tracking object how many Blocks pointing to the same NumPy array
+are alive. The reference tracking object evaluates the weak references and tells us that more
+than one object references the same data. This enables us to trigger a copy internally if one of 
+them is modified inplace. &lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df2.iloc[0, 0] = 100
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;The Block in &lt;code&gt;df2&lt;/code&gt; is copied through a deep copy, creating a new Block that has its own data and
+reference tracking object. The original block that was backing &lt;code&gt;df2&lt;/code&gt; can now be garbage collected,
+which ensures that the arrays backing &lt;code&gt;df&lt;/code&gt; and &lt;code&gt;df2&lt;/code&gt; don't share any memory.&lt;/p&gt;
+&lt;p&gt;&lt;img alt="" src="../images/deep_dive_cow/copy-on-write_copy.svg"&gt;&lt;/p&gt;
+&lt;p&gt;Let's look at a different scenario.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df = None
+df2.iloc[0, 0] = 100
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;&lt;code&gt;df&lt;/code&gt; is invalidated before we modify &lt;code&gt;df2&lt;/code&gt;. Consequently, the weakref of our reference tracking
+object, that points to the Block that backed &lt;code&gt;df&lt;/code&gt;, evaluates to &lt;code&gt;None&lt;/code&gt;. This enables us to modify 
+&lt;code&gt;df2&lt;/code&gt; without triggering a copy.&lt;/p&gt;
+&lt;p&gt;&lt;img alt="" src="../images/deep_dive_cow/copy-on-write_invalidate.svg"&gt;&lt;/p&gt;
+&lt;p&gt;Our reference tracking object points to only one DataFrame which enables us to do the operation
+inplace without triggering a copy.&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;reset_index&lt;/code&gt; above creates a view. The mechanism is a bit simpler if we have an operation that 
+triggers a copy internally.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df2 = df.copy()
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;This immediately instantiates a new reference tracking object for our DataFrame &lt;code&gt;df2&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;&lt;img alt="" src="../images/deep_dive_cow/copy-on-write_copy_immediately.svg"&gt;&lt;/p&gt;
+&lt;h2 id="conclusion"&gt;Conclusion&lt;/h2&gt;
+&lt;p&gt;We have investigated how the Copy-on-Write tracking mechanism works and when we trigger a copy. 
+The mechanism defers copies in pandas as much as possible, which is quite different from the non-CoW 
+behavior. The reference tracking mechanism keeps track of all DataFrames that share memory,
+enabling more consistent behavior in pandas.&lt;/p&gt;
+&lt;p&gt;The next part in this series will explain techniques that are used to make this mechanism more
+efficient.&lt;/p&gt;
+&lt;p&gt;Thank you for reading. Feel free to reach out to share your thoughts and feedback 
+about Copy-on-Write.&lt;/p&gt;</content><category term="posts"></category><category term="pandas"></category><category term="copy-on-write"></category><category term="performance"></category></entry><entry><title>pandas Internals Explained</title><link href="https://phofl.github.io/pandas-internals.html" rel="alternate"></link><published>2023-07-21T00:00:00+02:00</published><updated>2023-07-21T00:00:00+02:00</updated><author><name>Patrick Hoefler</name></author><id>tag:phofl.github.io,2023-07-21:/pandas-internals.html</id><summary type="html">&lt;p&gt;&lt;em&gt;Explaining the pandas data model and its advantages&lt;/em&gt;&lt;/p&gt;
 &lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
 &lt;p&gt;pandas enables you to choose between different types of arrays to represent the data of your
 DataFrame. Historically, most DataFrames are backed by NumPy arrays. &lt;a href="https://medium.com/gitconnected/welcoming-pandas-2-0-194094e4275b"&gt;pandas 2.0 introduced the 

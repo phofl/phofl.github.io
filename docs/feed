@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<rss version="2.0"><channel><title>Patrick Hoefler</title><link>https://phofl.github.io/</link><description></description><lastBuildDate>Mon, 07 Aug 2023 00:00:00 +0200</lastBuildDate><item><title>Process hundreds of GB of data with Coiled Functions and DuckDB</title><link>https://phofl.github.io/coiled-functions-duckdb.html</link><description>&lt;p&gt;&lt;img alt="" src="../images/duckdb-coiled-functions.png"&gt;&lt;/p&gt;
+<rss version="2.0"><channel><title>Patrick Hoefler</title><link>https://phofl.github.io/</link><description></description><lastBuildDate>Wed, 09 Aug 2023 00:00:00 +0200</lastBuildDate><item><title>Deep Dive into pandas Copy-on-Write Mode - Part I</title><link>https://phofl.github.io/cow-deep-dive.html</link><description>&lt;p&gt;&lt;em&gt;Explaining how Copy-on-Write works internally&lt;/em&gt;&lt;/p&gt;
+&lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
+&lt;p&gt;&lt;a href="https://medium.com/gitconnected/welcoming-pandas-2-0-194094e4275b"&gt;pandas 2.0&lt;/a&gt; was released in 
+early April and brought many improvements to the new Copy-on-Write (CoW)
+mode. The feature is expected to become the default in pandas 3.0, which is scheduled for
+April 2024 at the moment. There are no plans for …&lt;/p&gt;</description><dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Patrick Hoefler</dc:creator><pubDate>Wed, 09 Aug 2023 00:00:00 +0200</pubDate><guid isPermaLink="false">tag:phofl.github.io,2023-08-09:/cow-deep-dive.html</guid><category>posts</category><category>pandas</category><category>copy-on-write</category><category>performance</category></item><item><title>Process hundreds of GB of data with Coiled Functions and DuckDB</title><link>https://phofl.github.io/coiled-functions-duckdb.html</link><description>&lt;p&gt;&lt;img alt="" src="../images/duckdb-coiled-functions.png"&gt;&lt;/p&gt;
 &lt;p&gt;We recently pushed out two new and experimental features &lt;a href="https://docs.coiled.io/user_guide/labs/jobs.html"&gt;Coiled Jobs&lt;/a&gt;
 and &lt;a href="https://docs.coiled.io/user_guide/labs/run.html"&gt;Coiled Functions&lt;/a&gt;
 for easily running scripts and functions in the cloud.&lt;/p&gt;
