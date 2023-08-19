@@ -391,7 +391,139 @@ our plans for the evening!&lt;/p&gt;
 &lt;p&gt;Unfortunately, we had to wait until pandas 2.0.2 was released to run a proper benchmark.&lt;/p&gt;
 &lt;p&gt;&lt;img alt="" src="../images/dask_upstream_performance_tests/benchmark_after.jpg"&gt;&lt;/p&gt;
 &lt;p&gt;This looks great! Our small pandas change translated to our Dask query and got performance back
-to the previous level!&lt;/p&gt;</content><category term="posts"></category><category term="dask"></category><category term="performance"></category><category term="coiled"></category><category term="pandas"></category></entry><entry><title>Benchmarking pandas against Polars from a pandas PoV</title><link href="https://phofl.github.io/pandas-benchmarks.html" rel="alternate"></link><published>2023-06-15T00:00:00+02:00</published><updated>2023-06-15T00:00:00+02:00</updated><author><name>Patrick Hoefler</name></author><id>tag:phofl.github.io,2023-06-15:/pandas-benchmarks.html</id><summary type="html">&lt;p&gt;&lt;em&gt;Or: How writing efficient pandas code matters&lt;/em&gt;&lt;/p&gt;
+to the previous level!&lt;/p&gt;</content><category term="posts"></category><category term="dask"></category><category term="performance"></category><category term="coiled"></category><category term="pandas"></category></entry><entry><title>Deep dive into pandas Copy-on-Write mode - part II</title><link href="https://phofl.github.io/cow-optimizations.html" rel="alternate"></link><published>2023-06-15T00:00:00+02:00</published><updated>2023-06-15T00:00:00+02:00</updated><author><name>Patrick Hoefler</name></author><id>tag:phofl.github.io,2023-06-15:/cow-optimizations.html</id><summary type="html">&lt;p&gt;&lt;em&gt;Explaining how Copy-on-Write optimizes performance&lt;/em&gt;&lt;/p&gt;
+&lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
+&lt;p&gt;The &lt;a href="https://medium.com/towards-data-science/deep-dive-into-pandas-copy-on-write-mode-part-i-26982e7408c6"&gt;first post&lt;/a&gt; 
+explained how the Copy-on-Write mechanism works. It highlights some ares where copies are introduced
+into the workflow. This post will focus
+on optimizations that ensure that this won't slow the average workflow down.&lt;/p&gt;
+&lt;p&gt;We utilize a technique that pandas internals use …&lt;/p&gt;</summary><content type="html">&lt;p&gt;&lt;em&gt;Explaining how Copy-on-Write optimizes performance&lt;/em&gt;&lt;/p&gt;
+&lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
+&lt;p&gt;The &lt;a href="https://medium.com/towards-data-science/deep-dive-into-pandas-copy-on-write-mode-part-i-26982e7408c6"&gt;first post&lt;/a&gt; 
+explained how the Copy-on-Write mechanism works. It highlights some ares where copies are introduced
+into the workflow. This post will focus
+on optimizations that ensure that this won't slow the average workflow down.&lt;/p&gt;
+&lt;p&gt;We utilize a technique that pandas internals use to avoid copying the whole DataFrame when it's not 
+necessary and thus, increase performance. &lt;/p&gt;
+&lt;h2 id="removal-of-defensive-copies"&gt;Removal of defensive copies&lt;/h2&gt;
+&lt;p&gt;Let's start with the most impactful improvement. Many pandas methods performed defensive copies
+to avoid side effects to protect against inplace modifications later on.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df = pd.DataFrame({&amp;quot;a&amp;quot;: [1, 2, 3], &amp;quot;b&amp;quot;: [4, 5, 6]})
+df2 = df.reset_index()
+df2.iloc[0, 0] = 100
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;There is no need to copy the data in &lt;code&gt;reset_index&lt;/code&gt;, but returning a view would introduce side
+effects when modifying the result, e.g. &lt;code&gt;df&lt;/code&gt; would be updated as well. Hence, a defensiv copy is
+performed in &lt;code&gt;reset_index&lt;/code&gt;. &lt;/p&gt;
+&lt;p&gt;All these defensive copies are no longer there when Copy-on-Write is enabled. This affects many
+methods. A full list can be found &lt;a href="https://pandas.pydata.org/docs/user_guide/copy_on_write.html#copy-on-write-optimizations"&gt;here&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Additionally, selecting a columnar subset of a DataFrame will now always return a view instead of
+a copy as before.&lt;/p&gt;
+&lt;p&gt;Let's look at what this means performance-wise when we combine some of these methods:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;import pandas as pd
+import numpy as np
+
+N = 2_000_000
+int_df = pd.DataFrame(
+    np.random.randint(1, 100, (N, 10)), 
+    columns=[f&amp;quot;col_{i}&amp;quot; for i in range(10)],
+)
+float_df = pd.DataFrame(
+    np.random.random((N, 10)), 
+    columns=[f&amp;quot;col_{i}&amp;quot; for i in range(10, 20)],
+)
+str_df = pd.DataFrame(
+    &amp;quot;a&amp;quot;, 
+    index=range(N), 
+    columns=[f&amp;quot;col_{i}&amp;quot; for i in range(20, 30)],
+)
+
+df = pd.concat([int_df, float_df, str_df], axis=1)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;This creates a DataFrame with 30 columns, 3 different dtypes and 2 million rows. Let's execute
+the following method chain on this DataFrame:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;%%timeit
+(
+    df.rename(columns={&amp;quot;col_1&amp;quot;: &amp;quot;new_index&amp;quot;})
+    .assign(sum_val=df[&amp;quot;col_1&amp;quot;] + df[&amp;quot;col_2&amp;quot;])
+    .drop(columns=[&amp;quot;col_10&amp;quot;, &amp;quot;col_20&amp;quot;])
+    .astype({&amp;quot;col_5&amp;quot;: &amp;quot;int32&amp;quot;})
+    .reset_index()
+    .set_index(&amp;quot;new_index&amp;quot;)
+)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;All of these methods perform a defensiv copy without CoW enabled.&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Performance without CoW:&lt;/strong&gt;&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;2.45 s ± 293 ms per loop (mean ± std. dev. of 7 runs, 1 loop each)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;--&lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;Performance with CoW enabled:&lt;/strong&gt;&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;*13.7 ms ± 286 µs per loop (mean ± std. dev. of 7 runs, 100 loops each)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;An improvement by roughly a factor of 200. I chose this example explicitly to illustrate the
+potential benefits of CoW. Not every method will get that much faster.&lt;/p&gt;
+&lt;h2 id="optimizing-copies-triggered-by-inplace-modifications"&gt;Optimizing copies triggered by inplace modifications&lt;/h2&gt;
+&lt;p&gt;The previous section illustrated many methods where a defensiv copy is no longer necessary.
+CoW guarantees that you can't modify two objects at once. This means that we have to introduce
+a copy when the same data is referenced by two DataFrames. Let's look at techniques to make
+these copies as efficient as possible.&lt;/p&gt;
+&lt;p&gt;The previous post showed that the following might trigger a copy:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df.iloc[0, 0] = 100
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;The copy is triggered if the data that is backing &lt;code&gt;df&lt;/code&gt; is referenced by another DataFrame.
+We assume that our DataFrame has &lt;code&gt;n&lt;/code&gt; integer columns, e.g. is backed by a single Block.&lt;/p&gt;
+&lt;p&gt;&lt;img alt="" src="../images/deep_dive_cow/optimizations/cow_one_block.svg"&gt;&lt;/p&gt;
+&lt;p&gt;Our Reference tracking object is also referencing another Block, so we can not modify the DataFrame
+inplace without modifying another object. A naive approach would be to copy the whole block and be
+done with it.&lt;/p&gt;
+&lt;p&gt;&lt;img alt="" src="../images/deep_dive_cow/optimizations/cow_one_block_naive.svg"&gt;&lt;/p&gt;
+&lt;p&gt;This would set up a new reference tracking object and create a new Block that is backed by a fresh
+NumPy array. This Block doesn't have any more references, so another operation would be able to 
+modify it inplace again. This approach copies &lt;code&gt;n-1&lt;/code&gt; columns that we don't necessarily have to 
+copy. We utilize a technique we call Block splitting to avoid this.&lt;/p&gt;
+&lt;p&gt;&lt;img alt="" src="../images/deep_dive_cow/optimizations/cow_one_block_splitting.svg"&gt;&lt;/p&gt;
+&lt;p&gt;Internally, only the first column is copied. All other columns are taken as views on the previous 
+array. The new Block does not share any references with other columns. The old Block still shares
+references with other objects since it is only a view on the previous values.&lt;/p&gt;
+&lt;p&gt;There is one disadvantage to this technique. The initial array has &lt;code&gt;n&lt;/code&gt; columns. We created a
+view on columns &lt;code&gt;2&lt;/code&gt; till &lt;code&gt;n&lt;/code&gt;, but this keeps the whole array alive. We also added a new array
+with one column for the first column. This will keep a bit more memory alive than necessary. &lt;/p&gt;
+&lt;p&gt;This system directly translates to DataFrames with different dtypes. All Blocks that are not
+modified at all are returned as is and only Blocks that are modified inplace are split.&lt;/p&gt;
+&lt;p&gt;&lt;img alt="" src="../images/deep_dive_cow/optimizations/cow_two_blocks.svg"&gt;&lt;/p&gt;
+&lt;p&gt;We now set a new value into column &lt;code&gt;n+1&lt;/code&gt; the float Block to create a view on columns &lt;code&gt;n+2&lt;/code&gt;
+to &lt;code&gt;m&lt;/code&gt;. The new Block will only back column &lt;code&gt;n+1&lt;/code&gt;.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df.iloc[0, n+1] = 100.5
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;&lt;img alt="" src="../images/deep_dive_cow/optimizations/cow_two_blocks_split.svg"&gt;&lt;/p&gt;
+&lt;h2 id="methods-that-can-operate-inplace"&gt;Methods that can operate inplace&lt;/h2&gt;
+&lt;p&gt;The indexing operations we looked at don't generally create a new object; they modify
+the existing object inplace, inlcuding the data of said object. Another group of pandas methods does
+not touch the data of the DataFrame at all. One prominent example is &lt;code&gt;rename&lt;/code&gt;. Rename only changes
+the labels. These methods can utilize the lazy-copy mechanism mentioned above.&lt;/p&gt;
+&lt;p&gt;There is another third group of methods that can actually be done inplace, like &lt;code&gt;replace&lt;/code&gt; or
+&lt;code&gt;fillna&lt;/code&gt;. These will always trigger a copy.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df2 = df.replace(...)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Modifying the data inplace without triggering a copy would modify &lt;code&gt;df&lt;/code&gt; and &lt;code&gt;df2&lt;/code&gt;, which violates
+CoW rules. This is one of the reasons why we consider keeping the &lt;code&gt;inplace&lt;/code&gt; keyword for these
+methods.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df.replace(..., inplace=True)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;This would get rid of this problem. It's still an open proposal and might go into a different
+direction. That said, this only pertains to columns that are actually
+changed; all other columns are returned as views anyway. This means that only one column is copied
+if your value is only found in one column.&lt;/p&gt;
+&lt;h2 id="conclusion"&gt;Conclusion&lt;/h2&gt;
+&lt;p&gt;We investigate how CoW changes pandas internal behavior and how this will translate to improvements
+in your code. Many methods will get faster with CoW, while we will see a slowdown in a couple of
+indexing related operations. Previously, these operations always operated inplace, which might have
+produced side effects. These side effects are gone with CoW and a modification on one DataFrame 
+object will never impact another.&lt;/p&gt;
+&lt;p&gt;The next post in this series will explain how you can update your code to be compliant
+with CoW. Also, we will explain which patterns to avoid in the future.&lt;/p&gt;
+&lt;p&gt;Thank you for reading. Feel free to reach out to share your thoughts and feedback 
+about Copy-on-Write.&lt;/p&gt;</content><category term="posts"></category><category term="pandas"></category></entry><entry><title>Benchmarking pandas against Polars from a pandas PoV</title><link href="https://phofl.github.io/pandas-benchmarks.html" rel="alternate"></link><published>2023-06-15T00:00:00+02:00</published><updated>2023-06-15T00:00:00+02:00</updated><author><name>Patrick Hoefler</name></author><id>tag:phofl.github.io,2023-06-15:/pandas-benchmarks.html</id><summary type="html">&lt;p&gt;&lt;em&gt;Or: How writing efficient pandas code matters&lt;/em&gt;&lt;/p&gt;
 &lt;p&gt;&lt;img alt="" src="../images/pandas_benchmark/title.png"&gt;&lt;/p&gt;
 &lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
 &lt;p&gt;I've regularly seen benchmarks that show how much faster Polars is compared to pandas. 
