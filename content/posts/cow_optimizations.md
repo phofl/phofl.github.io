@@ -1,8 +1,9 @@
 ---
-title: Deep dive into pandas Copy-on-Write mode - part II
-date: 2023-06-15
-slug: cow-optimizations
-tags: pandas
+title: Deep Dive into pandas Copy-on-Write Mode - Part I)
+blogpost: true
+date: 2023-08-17
+slug: cow-deep-dive-optimizations
+tags: pandas, copy-on-write, performance
 ---
 
 _Explaining how Copy-on-Write optimizes performance_
