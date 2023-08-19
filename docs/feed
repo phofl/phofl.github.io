@@ -1,5 +1,49 @@
 <?xml version="1.0" encoding="utf-8"?>
-<rss version="2.0"><channel><title>Patrick Hoefler</title><link>https://phofl.github.io/</link><description></description><lastBuildDate>Thu, 23 Mar 2023 00:00:00 +0100</lastBuildDate><item><title>Welcoming pandas 2.0</title><link>https://phofl.github.io/pandas-20.html</link><description>&lt;p&gt;&lt;em&gt;How the API is changing and how to leverage new functionalities&lt;/em&gt;&lt;/p&gt;
+<rss version="2.0"><channel><title>Patrick Hoefler</title><link>https://phofl.github.io/</link><description></description><lastBuildDate>Wed, 09 Aug 2023 00:00:00 +0200</lastBuildDate><item><title>Deep Dive into pandas Copy-on-Write Mode - Part I</title><link>https://phofl.github.io/cow-deep-dive.html</link><description>&lt;p&gt;&lt;em&gt;Explaining how Copy-on-Write works internally&lt;/em&gt;&lt;/p&gt;
+&lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
+&lt;p&gt;&lt;a href="https://medium.com/gitconnected/welcoming-pandas-2-0-194094e4275b"&gt;pandas 2.0&lt;/a&gt; was released in 
+early April and brought many improvements to the new Copy-on-Write (CoW)
+mode. The feature is expected to become the default in pandas 3.0, which is scheduled for
+April 2024 at the moment. There are no plans for …&lt;/p&gt;</description><dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Patrick Hoefler</dc:creator><pubDate>Wed, 09 Aug 2023 00:00:00 +0200</pubDate><guid isPermaLink="false">tag:phofl.github.io,2023-08-09:/cow-deep-dive.html</guid><category>posts</category><category>pandas</category><category>copy-on-write</category><category>performance</category></item><item><title>Process hundreds of GB of data with Coiled Functions and DuckDB</title><link>https://phofl.github.io/coiled-functions-duckdb.html</link><description>&lt;p&gt;&lt;img alt="" src="../images/duckdb-coiled-functions.png"&gt;&lt;/p&gt;
+&lt;p&gt;We recently pushed out two new and experimental features &lt;a href="https://docs.coiled.io/user_guide/labs/jobs.html"&gt;Coiled Jobs&lt;/a&gt;
+and &lt;a href="https://docs.coiled.io/user_guide/labs/run.html"&gt;Coiled Functions&lt;/a&gt;
+for easily running scripts and functions in the cloud.&lt;/p&gt;
+&lt;p&gt;In this post we'll use Coiled Functions to process the 150 GB &lt;a href="https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page"&gt;Uber-Lyft dataset&lt;/a&gt; 
+on a single machine with &lt;a href="https://duckdb.org"&gt;DuckDB&lt;/a&gt;.&lt;/p&gt;
+&lt;h2 id="getting-started"&gt;Getting started&lt;/h2&gt;
+&lt;p&gt;We start with creating the …&lt;/p&gt;</description><dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Patrick Hoefler</dc:creator><pubDate>Mon, 07 Aug 2023 00:00:00 +0200</pubDate><guid isPermaLink="false">tag:phofl.github.io,2023-08-07:/coiled-functions-duckdb.html</guid><category>posts</category><category>coiled</category><category>jobs</category><category>duckdb</category></item><item><title>High Level Query Optimization in Dask</title><link>https://phofl.github.io/high-level-query-optimization-in-dask.html</link><description>&lt;p&gt;&lt;img alt="" src="../images/dask-expr/dask-expr-introduction-title.png"&gt;&lt;/p&gt;
+&lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
+&lt;p&gt;Dask DataFrame doesn't currently optimize your code for you (like Spark or a SQL database would). 
+This means that users waste a lot of computation. Let's look at a common example
+which looks ok at first glance, but is actually pretty inefficient.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;import dask.dataframe as dd
+
+df = dd …&lt;/code&gt;&lt;/pre&gt;</description><dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Patrick Hoefler</dc:creator><pubDate>Fri, 04 Aug 2023 00:00:00 +0200</pubDate><guid isPermaLink="false">tag:phofl.github.io,2023-08-04:/high-level-query-optimization-in-dask.html</guid><category>posts</category><category>dask</category><category>query optimizer</category><category>performance</category></item><item><title>How to Train a Neural Network on a GPU in the Cloud with coiled functions</title><link>https://phofl.github.io/coiled-functions-pytorch.html</link><description>&lt;p&gt;&lt;img alt="" src="../images/coiled_run/coiled-run-pytorch.png"&gt;&lt;/p&gt;
+&lt;p&gt;We recently pushed out two new and experimental features &lt;a href="https://docs.coiled.io/user_guide/labs/jobs.html?utm_source=phofl&amp;amp;utm_medium=coiled-functions-gpu"&gt;coiled jobs&lt;/a&gt;
+and &lt;a href="https://docs.coiled.io/user_guide/labs/run.html?utm_source=phofl&amp;amp;utm_medium=coiled-functions-gpu"&gt;coiled functions&lt;/a&gt;
+which is a deviation of &lt;code&gt;coiled jobs&lt;/code&gt;. We are excited about both of them because they:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Allow users to scale up any given program on any hardware in the cloud.&lt;/li&gt;
+&lt;li&gt;Make GPUs easily accessible without going …&lt;/li&gt;&lt;/ul&gt;</description><dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Patrick Hoefler</dc:creator><pubDate>Mon, 24 Jul 2023 00:00:00 +0200</pubDate><guid isPermaLink="false">tag:phofl.github.io,2023-07-24:/coiled-functions-pytorch.html</guid><category>posts</category><category>coiled</category><category>jobs</category><category>gpu</category><category>machine learning</category></item><item><title>pandas Internals Explained</title><link>https://phofl.github.io/pandas-internals.html</link><description>&lt;p&gt;&lt;em&gt;Explaining the pandas data model and its advantages&lt;/em&gt;&lt;/p&gt;
+&lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
+&lt;p&gt;pandas enables you to choose between different types of arrays to represent the data of your
+DataFrame. Historically, most DataFrames are backed by NumPy arrays. &lt;a href="https://medium.com/gitconnected/welcoming-pandas-2-0-194094e4275b"&gt;pandas 2.0 introduced the 
+option to use PyArrow arrays&lt;/a&gt; as a storage format. 
+There exists …&lt;/p&gt;</description><dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Patrick Hoefler</dc:creator><pubDate>Fri, 21 Jul 2023 00:00:00 +0200</pubDate><guid isPermaLink="false">tag:phofl.github.io,2023-07-21:/pandas-internals.html</guid><category>posts</category><category>pandas</category></item><item><title>Dask performance benchmarking put to the test: Fixing a pandas bottleneck</title><link>https://phofl.github.io/dask-performance-benchmarking-put-to-the-test-fixing-a-pandas-bottleneck.html</link><description>&lt;p&gt;&lt;strong&gt;Getting notified of a significant performance regression the day before release sucks, but quickly identifying and resolving it feels great!&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;We were getting set up at our booth at JupyterCon 2023 when we received a notification:
+An engineer on our team had spotted a significant performance regression in Dask.
+With …&lt;/p&gt;</description><dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Patrick Hoefler</dc:creator><pubDate>Wed, 28 Jun 2023 00:00:00 +0200</pubDate><guid isPermaLink="false">tag:phofl.github.io,2023-06-28:/dask-performance-benchmarking-put-to-the-test-fixing-a-pandas-bottleneck.html</guid><category>posts</category><category>dask</category><category>performance</category><category>coiled</category><category>pandas</category></item><item><title>Benchmarking pandas against Polars from a pandas PoV</title><link>https://phofl.github.io/pandas-benchmarks.html</link><description>&lt;p&gt;&lt;em&gt;Or: How writing efficient pandas code matters&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img alt="" src="../images/pandas_benchmark/title.png"&gt;&lt;/p&gt;
+&lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
+&lt;p&gt;I've regularly seen benchmarks that show how much faster Polars is compared to pandas. 
+The fact that Polars is faster than pandas is not too surprising since it is multithreaded while 
+pandas is mostly single-core. The big difference surprises me though. That's …&lt;/p&gt;</description><dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Patrick Hoefler</dc:creator><pubDate>Thu, 15 Jun 2023 00:00:00 +0200</pubDate><guid isPermaLink="false">tag:phofl.github.io,2023-06-15:/pandas-benchmarks.html</guid><category>posts</category><category>pandas</category></item><item><title>Utilizing PyArrow to improve pandas and Dask workflows</title><link>https://phofl.github.io/pyarrow-pandas-dask.html</link><description>&lt;p&gt;&lt;em&gt;Get the most out of PyArrow support in pandas and Dask right now&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img alt="" src="../images/arrow_backend/title.svg"&gt;&lt;/p&gt;
+&lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
+&lt;p&gt;This post investigates where we can use PyArrow to improve our pandas and Dask workflows right now.
+General support for PyArrow dtypes was added with pandas 2.0 to &lt;a href="https://pandas.pydata.org"&gt;pandas&lt;/a&gt; 
+and &lt;a href="https://www.dask.org?utm_source=phofl&amp;amp;utm_medium=pyarrow-in-pandas-and-dask"&gt;Dask&lt;/a&gt;. This solves a
+bunch …&lt;/p&gt;</description><dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Patrick Hoefler</dc:creator><pubDate>Mon, 05 Jun 2023 00:00:00 +0200</pubDate><guid isPermaLink="false">tag:phofl.github.io,2023-06-05:/pyarrow-pandas-dask.html</guid><category>posts</category><category>pandas</category><category>dask</category></item><item><title>Welcoming pandas 2.0</title><link>https://phofl.github.io/pandas-20.html</link><description>&lt;p&gt;&lt;em&gt;How the API is changing and how to leverage new functionalities&lt;/em&gt;&lt;/p&gt;
 &lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
 &lt;p&gt;After 3 years of development, the second pandas 2.0 release candidate was released on the 16th of 
 March. There are many new features in pandas 2.0, including improved extension array

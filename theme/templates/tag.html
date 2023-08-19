@@ -1,21 +1,22 @@
-{% extends "index.html" %}
-{% block title %}&ndash; Tag: {{ tag }}{% endblock %}
+{% extends "base.html" %}
+{% block title %}Archives{% endblock %}
+{% block headerimg %}{{ DEFAUT_HEADER_BG }}{% endblock %}
 
-{% block head %}
-{% if TAG_FEED_ATOM %}
-<link href="{{ FEED_DOMAIN }}/{{ TAG_FEED_ATOM.format(slug='tag.slug') }}" type="application/atom+xml" rel="alternate" title="{{ SITENAME }} {{ tag }} Tag Atom" />
-{% endif %}
-{% if TAG_FEED_RSS %}
-<link href="{{ FEED_DOMAIN }}/{{ TAG_FEED_RSS.format(slug='tag.slug') }}" type="application/rss+xml" rel="alternate" title="{{ SITENAME }} {{ tag }} Tag RSS" />
-{% endif %}
-{% endblock %}
+{% block content %}
+<div class="container list">
+    <article>
+        <h1 style="margin-bottom: 30px;">Tag: {{ tag }}</h1>
 
-{% block header %}
-&gt; Tag: {{ tag }}
-{% if TAG_FEED_ATOM %}
-&brvbar; <a href="{{ FEED_DOMAIN }}/{{ TAG_FEED_ATOM.format(slug='tag.slug') }}">Atom</a>
-{% endif %}
-{% if TAG_FEED_RSS %}
-&brvbar; <a href="{{ FEED_DOMAIN }}/{{ TAG_FEED_RSS.format(slug='tag.slug') }}">RSS</a>
-{% endif %}
+        <ul class="double-list">
+        {% for article in articles %}
+            <li>
+                <a href='/{{ article.url }}'>
+                    <h2>{{ article.title }}</h2>
+                    <span>{{ article.date.strftime('%d.%m.%Y') }}</span>
+                </a>
+            </li>
+        {% endfor %}
+        </ul>
+    </article>
+</div>
 {% endblock %}

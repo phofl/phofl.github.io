@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+        <meta name="author" content="Patrick Hoefler">
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width">
+        <title>Process hundreds of GB of data with Coiled Functions and DuckDB | Patrick Hoefler</title>
+
+	<link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+	<link rel="icon" href="/favicon.ico" type="image/x-icon">
+        <link rel="alternate" type="application/atom+xml" title="Patrick Hoefler blog atom feed" href="/feeds/all.atom.xml" />
+        <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,700' rel='stylesheet' type='text/css'>
+
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+        <link rel="stylesheet" type="text/css" href="/theme/css/icons.css"/>
+        <link rel="stylesheet" type="text/css" href="/theme/css/font-awesome.min.css"/>
+        <link rel="stylesheet" type="text/css" href="/theme/css/style.min.css"/>
+        <style>.highlight .hll { background-color: #ffffcc }
+.highlight .c { color: #60a0b0; font-style: italic } /* Comment */
+.highlight .err { border: 1px solid #FF0000 } /* Error */
+.highlight .k { color: #007020; font-weight: bold } /* Keyword */
+.highlight .o { color: #666666 } /* Operator */
+.highlight .cm { color: #60a0b0; font-style: italic } /* Comment.Multiline */
+.highlight .cp { color: #007020 } /* Comment.Preproc */
+.highlight .c1 { color: #60a0b0; font-style: italic } /* Comment.Single */
+.highlight .cs { color: #60a0b0; background-color: #fff0f0 } /* Comment.Special */
+.highlight .gd { color: #A00000 } /* Generic.Deleted */
+.highlight .ge { font-style: italic } /* Generic.Emph */
+.highlight .gr { color: #FF0000 } /* Generic.Error */
+.highlight .gh { color: #000080; font-weight: bold } /* Generic.Heading */
+.highlight .gi { color: #00A000 } /* Generic.Inserted */
+.highlight .go { color: #808080 } /* Generic.Output */
+.highlight .gp { color: #c65d09; font-weight: bold } /* Generic.Prompt */
+.highlight .gs { font-weight: bold } /* Generic.Strong */
+.highlight .gu { color: #800080; font-weight: bold } /* Generic.Subheading */
+.highlight .gt { color: #0040D0 } /* Generic.Traceback */
+.highlight .kc { color: #007020; font-weight: bold } /* Keyword.Constant */
+.highlight .kd { color: #007020; font-weight: bold } /* Keyword.Declaration */
+.highlight .kn { color: #007020; font-weight: bold } /* Keyword.Namespace */
+.highlight .kp { color: #007020 } /* Keyword.Pseudo */
+.highlight .kr { color: #007020; font-weight: bold } /* Keyword.Reserved */
+.highlight .kt { color: #902000 } /* Keyword.Type */
+.highlight .m { color: #40a070 } /* Literal.Number */
+.highlight .s { color: #4070a0 } /* Literal.String */
+.highlight .na { color: #4070a0 } /* Name.Attribute */
+.highlight .nb { color: #007020 } /* Name.Builtin */
+.highlight .nc { color: #0e84b5; font-weight: bold } /* Name.Class */
+.highlight .no { color: #60add5 } /* Name.Constant */
+.highlight .nd { color: #555555; font-weight: bold } /* Name.Decorator */
+.highlight .ni { color: #d55537; font-weight: bold } /* Name.Entity */
+.highlight .ne { color: #007020 } /* Name.Exception */
+.highlight .nf { color: #06287e } /* Name.Function */
+.highlight .nl { color: #002070; font-weight: bold } /* Name.Label */
+.highlight .nn { color: #0e84b5; font-weight: bold } /* Name.Namespace */
+.highlight .nt { color: #062873; font-weight: bold } /* Name.Tag */
+.highlight .nv { color: #bb60d5 } /* Name.Variable */
+.highlight .ow { color: #007020; font-weight: bold } /* Operator.Word */
+.highlight .w { color: #bbbbbb } /* Text.Whitespace */
+.highlight .mf { color: #40a070 } /* Literal.Number.Float */
+.highlight .mh { color: #40a070 } /* Literal.Number.Hex */
+.highlight .mi { color: #40a070 } /* Literal.Number.Integer */
+.highlight .mo { color: #40a070 } /* Literal.Number.Oct */
+.highlight .sb { color: #4070a0 } /* Literal.String.Backtick */
+.highlight .sc { color: #4070a0 } /* Literal.String.Char */
+.highlight .sd { color: #4070a0; font-style: italic } /* Literal.String.Doc */
+.highlight .s2 { color: #4070a0 } /* Literal.String.Double */
+.highlight .se { color: #4070a0; font-weight: bold } /* Literal.String.Escape */
+.highlight .sh { color: #4070a0 } /* Literal.String.Heredoc */
+.highlight .si { color: #70a0d0; font-style: italic } /* Literal.String.Interpol */
+.highlight .sx { color: #c65d09 } /* Literal.String.Other */
+.highlight .sr { color: #235388 } /* Literal.String.Regex */
+.highlight .s1 { color: #4070a0 } /* Literal.String.Single */
+.highlight .ss { color: #517918 } /* Literal.String.Symbol */
+.highlight .bp { color: #007020 } /* Name.Builtin.Pseudo */
+.highlight .vc { color: #bb60d5 } /* Name.Variable.Class */
+.highlight .vg { color: #bb60d5 } /* Name.Variable.Global */
+.highlight .vi { color: #bb60d5 } /* Name.Variable.Instance */
+.highlight .il { color: #40a070 } /* Literal.Number.Integer.Long */</style>
+        <style>body {
+  margin: 0;
+  padding: 0;
+  font: 15px 'Source Sans Pro', sans-serif;
+  line-height: 1.6em;
+  color: #222;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+a {
+  color: #007EE5;
+  text-decoration: none;
+}
+a:hover {
+  color: #007EE5;
+  text-decoration: none;
+}
+header.main-header {
+  background: none repeat scroll 0% 0% #205F29;
+  margin-bottom: 0px;
+}
+header.main-header a {
+  color: #fff;
+}
+header.main-header .container {
+  max-width: 1000px;
+}
+header.main-header .container nav a:hover {
+  background-color: #5C881C;
+}
+article {
+  margin: 0;
+}
+article header.about {
+  margin-bottom: 0px;
+  padding-bottom: 0px;
+}
+article header {
+  margin-bottom: 20px;
+  padding-bottom: 20px;
+}
+article header h1 {
+  margin-bottom: 2px;
+  font-weight: 700;
+  color: #000;
+}
+article header time {
+  color: #9E9E9E;
+  font-size: 0.85em;
+  float: right;
+}
+article header time.left {
+  color: #9E9E9E;
+  font-size: 0.85em;
+  float: left;
+}
+article div.social-links ul {
+  padding: 0px;
+}
+article div.social-links li {
+  display: inline;
+  font-size: 20px;
+}
+article div.social-links li a {
+  color: #000;
+  padding: 10px;
+}
+article div.social-links li a:hover {
+  color: #666;
+  text-decoration: none;
+}
+article p {
+  font-size: 16px;
+  margin-bottom: 20px;
+  line-height: 1.6em;
+}
+article p.note {
+  background: #f5f5f5;
+  border: 1px solid #ddd;
+  padding: 0.533em 0.733em;
+}
+article p.update {
+  background-color: #FEEFB3;
+  border: 1px solid #e6e68a;
+  padding: 0.533em 0.733em;
+}
+article p.alert {
+  background-color: #ffe2e2;
+  border: 1px solid #ffb2b2;
+  padding: 0.533em 0.733em;
+}
+article ul,
+article ol {
+  margin-top: 0px;
+  margin-bottom: 25px;
+}
+article li {
+  font-size: 16px;
+  line-height: 1.6em;
+}
+article a:hover {
+  text-decoration: underline;
+}
+article blockquote {
+  border-left: 2px solid #c7c7cc;
+  color: #666;
+  margin: 30px 0;
+  padding: 0 0 0 25px;
+}
+article img {
+  max-width: 100%;
+}
+article code {
+  color: #333;
+  background-color: #EEE;
+  border-radius: 0;
+  font-size: 13px;
+}
+article .meta {
+  font-size: 11px;
+}
+article .meta a:hover {
+  text-decoration: none;
+}
+article .meta div {
+  margin-bottom: 20px;
+  display: block;
+}
+article .meta a.tag {
+  margin: 0 10px 10px 0;
+  padding: 1px 12px;
+  display: inline-block;
+  font-size: 14px;
+  color: rgba(0, 0, 0, 0.8);
+  background: rgba(0, 0, 0, 0.05);
+}
+article .meta a.tag:hover {
+  background: rgba(0, 0, 0, 0.15);
+}
+article .meta a.read_more,
+article .meta a.comments_btn {
+  font-size: 14px;
+  font-weight: 800;
+  padding: 10px 20px;
+  color: #205F29;
+  background: #FFF;
+  border: 1px solid #205F29;
+}
+article .meta a.read_more:hover,
+article .meta a.comments_btn:hover {
+  color: #FFF;
+  background: #5C881C;
+}
+.index {
+  max-width: 700px;
+}
+.index article header h2 {
+  font-size: 36px;
+  margin-bottom: 2px;
+  font-weight: 700;
+}
+.index article header h2 a {
+  color: #000;
+}
+.index article header h2 a:hover {
+  color: #007EE5;
+  text-decoration: none;
+}
+.index .separator {
+  padding: 40px 0 0 0;
+  margin: 0 0 40px 0;
+  height: 10px;
+  border-bottom: solid 1px #CCC;
+}
+.index .pagination {
+  display: block;
+  margin-bottom: 100px;
+}
+.index .pagination .left {
+  text-align: right;
+}
+.index .pagination .right {
+  text-align: left;
+}
+.index .pagination a {
+  display: inline-block;
+  border: 2px solid #5C881C;
+  margin: 0 5px;
+  padding: 8px 20px;
+  font-weight: bold;
+  color: #5C881C;
+}
+.index .pagination a:hover {
+  color: #FFF;
+  background: #5C881C;
+}
+.post {
+  max-width: 700px;
+}
+.post h2:before {
+  content: "# ";
+  font-weight: bold;
+  color: #DDD;
+}
+.post h3:before {
+  content: "## ";
+  font-weight: bold;
+  color: #DDD;
+}
+.post h4:before {
+  content: "### ";
+  font-weight: bold;
+  color: #DDD;
+}
+.post article .meta {
+  margin: 50px 0 100px;
+}
+.list {
+  max-width: 700px;
+}
+.list ul.double-list {
+  margin: 0 auto 60px;
+  padding: 0;
+  list-style-type: none;
+}
+.list ul.double-list li {
+  padding: 5px 0;
+}
+.list ul.double-list li h2 {
+  font-size: 1em;
+  display: inline;
+  font-weight: normal;
+}
+.list ul.double-list li span {
+  font-family: sans-serif;
+  text-transform: uppercase;
+  text-align: right;
+  float: right;
+  padding-top: 3px;
+  font-size: 12px;
+  color: #999;
+}
+.full-width-content {
+  padding-top: 10px;
+  padding-left: 0px;
+  padding-right: 0px;
+  margin-left: -20px;
+  margin-right: -20px;
+}
+.col-xs-1,
+.col-sm-1,
+.col-md-1,
+.col-lg-1,
+.col-xs-2,
+.col-sm-2,
+.col-md-2,
+.col-lg-2,
+.col-xs-3,
+.col-sm-3,
+.col-md-3,
+.col-lg-3,
+.col-xs-4,
+.col-sm-4,
+.col-md-4,
+.col-lg-4,
+.col-xs-5,
+.col-sm-5,
+.col-md-5,
+.col-lg-5,
+.col-xs-6,
+.col-sm-6,
+.col-md-6,
+.col-lg-6,
+.col-xs-7,
+.col-sm-7,
+.col-md-7,
+.col-lg-7,
+.col-xs-8,
+.col-sm-8,
+.col-md-8,
+.col-lg-8,
+.col-xs-9,
+.col-sm-9,
+.col-md-9,
+.col-lg-9,
+.col-xs-10,
+.col-sm-10,
+.col-md-10,
+.col-lg-10,
+.col-xs-11,
+.col-sm-11,
+.col-md-11,
+.col-lg-11,
+.col-xs-12,
+.col-sm-12,
+.col-md-12,
+.col-lg-12 {
+  padding-right: 0px;
+  padding-left: 0px;
+}</style>
+
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+	<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+
+
+    </head>
+
+    <body>
+        <header class="navbar navbar-inverse bs-docs-nav">
+            <div class="container-fluid">
+                <div class="navbar-header">
+		  <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#theNavbar">
+		    <span class="icon-bar"></span>
+		    <span class="icon-bar"></span>
+		    <span class="icon-bar"></span>
+		  </button>
+                  <a class="navbar-brand" href="/" title="Home" class="title">Patrick Hoefler</a>
+                </div>
+                <nav class="collapse navbar-collapse bs-navbar-collapse" role="navigation" id="theNavbar">
+		    <ul class="nav navbar-nav navbar-right">
+                            <li><a href="/pages/about.html" title="About">About</a></li>
+                            <li><a href="/archives.html" title="Archive">Archive</a></li>
+                    </ul>
+                </nav>
+            </div>
+        </header>
+
+        <div id="wrap">
+<div class="container post">
+    <article>
+        <header>
+            <h1>Process hundreds of GB of data with Coiled Functions and DuckDB</h1>
+            <time datetime="article.date.isoformat()" pubdate>Mon 07 August 2023</time>
+        </header>
+
+        <div class="article_content">
+            <p><img alt="" src="../images/duckdb-coiled-functions.png"></p>
+<p>We recently pushed out two new and experimental features <a href="https://docs.coiled.io/user_guide/labs/jobs.html">Coiled Jobs</a>
+and <a href="https://docs.coiled.io/user_guide/labs/run.html">Coiled Functions</a>
+for easily running scripts and functions in the cloud.</p>
+<p>In this post we'll use Coiled Functions to process the 150 GB <a href="https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page">Uber-Lyft dataset</a> 
+on a single machine with <a href="https://duckdb.org">DuckDB</a>.</p>
+<h2 id="getting-started">Getting started</h2>
+<p>We start with creating the SQL queries that we want to run against the data locally. </p>
+<pre><code class="language-python">def load_data(conn):
+  # Load data into memory so that subsequent queries are fast
+  conn.execute(
+    '''
+    CREATE TABLE test AS 
+    SELECT * FROM read_parquet(&quot;s3://coiled-datasets/uber-lyft-tlc/*&quot;)
+    '''
+  )
+
+
+def compute_percentage_of_tipped_rides(conn):
+    # Run the actual query
+   return conn.execute(
+       '''
+       SELECT hvfhs_license_num, sum(tipped) / count(tipped)
+        FROM (select 
+           *,  
+           CASE WHEN tips &gt; 0.0 then 1 ELSE 0 end as tipped
+           from test) GROUP BY hvfhs_license_num
+       '''
+   ).fetchall()
+
+
+def create_conn():
+    import duckdb
+
+    return duckdb.connect()
+
+
+def query_results():
+    conn = create_conn()
+    load_data(conn)
+    return compute_percentage_of_tipped_rides(conn)
+
+</code></pre>
+<p>These queries aren't particularly fancy, they are meant to illustrate how we can process these
+files. If we execute these queries as is, it would pull all the data onto our machine. The whole
+dataset won't fit into memory on most workstations, so let's look at how Coiled can make this work. The loading
+would take a long time, even if we had enough memory.</p>
+<h2 id="using-coiled-functions-to-run-queries-on-a-large-vm">Using <code>coiled functions</code> to run queries on a large VM</h2>
+<p><a href="https://docs.coiled.io/user_guide/labs/run.html">Coiled Functions</a> come into the equation since we 
+need access to machines that have enough resources and are also close to our data. 
+Coiled can connect to AWS or GCP and thus, use all resources that are available there.
+We will go through the necessary steps execute these queries on a VM in the same region as our data
+with enough memory available.</p>
+<p>We'll have to adapt our <code>create_conn</code> function to set 
+<a href="https://duckdb.org/docs/guides/import/s3_import.html">the environment variables needed by DuckDB</a>.</p>
+<pre><code class="language-python">def create_conn():
+    import duckdb
+
+    conn = duckdb.connect()
+    conn.execute(&quot;INSTALL httpfs&quot;)
+    conn.execute(&quot;LOAD httpfs&quot;)
+    conn.execute(f&quot;SET s3_region='us-east-2'&quot;)
+    conn.execute(f&quot;SET s3_access_key_id='{os.environ['AWS_ACCESS_KEY_ID']}'&quot;)
+    conn.execute(f&quot;SET s3_secret_access_key='{os.environ['AWS_SECRET_ACCESS_KEY']}'&quot;)
+    return conn
+</code></pre>
+<p>There will be <a href="https://github.com/duckdblabs/duckdb_aws">an extension for DuckDB</a> that can take 
+care of this automatically starting from DuckDB 0.9.0.</p>
+<p>The next step is adding the <code>@coiled.function</code> decorator to the function that executes our queries.
+The decorator will tell Coiled that it should spin up a large VM on AWS and run the query there, and then return the result locally.</p>
+<pre><code class="language-python">@coiled.function(
+    vm_type=&quot;m6i.16xlarge&quot;, # 256 GB of RAM
+    region=&quot;us-east-2&quot;,     # region of our data
+    keepalive=&quot;5 minutes&quot;,  # keep alive to run multiple queries if necessary
+)
+def query_results():
+    conn = create_conn()
+    load_data(conn)
+    return compute_percentage_of_tipped_rides(conn)
+</code></pre>
+<p>Let's execute our queries and pull the results back to our local machine:</p>
+<pre><code class="language-python">result = query_results()
+
+print(result)
+[
+  ('HV0005', 0.1912300216459857), 
+  ('HV0003', 0.1498555901186066), 
+  ('HV0004', 0.09294857737045926), 
+  ('HV0002', 0.08440046492889111),
+]
+</code></pre>
+<p>The data are now all in memory on our VM in the cloud:</p>
+<p><img alt="" src="../images/coiled_run_duckdb_memory.png"></p>
+<p>There is no need to adjust the other functions. Coiled will run our query on a VM in the cloud with
+enough resources and close to our data.</p>
+<p>Let's take a brief look at the arguments to <code>coiled.function()</code>:</p>
+<ul>
+<li><code>vm_type</code>: This specifies the type of <a href="https://aws.amazon.com/ec2/instance-types/">EC2 instance</a>.
+  We are looking for an instance that has enough memory to hold our data. This instance has 256GB,
+  so this should be sufficient.</li>
+<li><code>region</code>: The region specifies the AWS region that our VM is started in. Our data are also in
+  <code>"us-east-2"</code>.</li>
+<li><code>keepalive</code>: Keeps the VM alive so that we can run multiple queries against the data in memory.</li>
+</ul>
+<p><code>coiled.function()</code> will now start a VM in AWS with the specified EC2 instance. The VM is normally up
+and running in 1-2 minutes. Coiled will scan our local environment and replicate the same 
+dependencies on this machine. We don't have to specify an explicit Python environment. Inputs of 
+your function are serialized and sent to the VM
+as well. Coiled will return our results back to our local machine.</p>
+<p>Coiled would normally shut down the VM immediately after the Python interpreter finishes. This is mostly to
+reduce costs. We specified
+<code>keepalive="5 minutes"</code> to keep the VM alive for a few of minutes after our Python interpreter
+finished. This ensures that new local runs can connect to the same VM avoiding
+the boot time of up to 2 minutes; we call this a warm start.</p>
+<h2 id="conclusion">Conclusion</h2>
+<p><code>coiled functions</code> enables you to run queries on a machine with as much memory as you want.
+This grants you access to computational resources that can be very close to your data. Doing
+data processing in the cloud becomes very easy with this functionality.</p>
+<p>You can check out the <a href="https://docs.coiled.io/user_guide/labs/functions.html">docs</a> 
+or take a look at how to utilize Coiled Functions to train
+a <a href="https://medium.com/coiled-hq/how-to-train-a-neural-network-on-a-gpu-in-the-cloud-with-coiled-functions-40fa9aca723b">neural network on a powerful GPU</a>.</p>
+        </div>
+
+        <div class="meta">
+            <div>
+                    <a href="https://phofl.github.io/tag/coiled.html" class="tag">coiled</a>
+                    <a href="https://phofl.github.io/tag/jobs.html" class="tag">jobs</a>
+                    <a href="https://phofl.github.io/tag/duckdb.html" class="tag">duckdb</a>
+            </div>
+            <div>
+                <a style="font-size:14pt;color: black;">Authors: </a>
+                    <a style="font-size:14pt;color: black;">Patrick Hoefler        </a>
+            </div>
+        </div>
+    </article>
+
+
+</div>
+
+<style type="text/css">
+{
+    max-width: 700px;
+}
+
+.text_cell .prompt {
+    display: none;
+}
+
+div.cell {
+    padding: 0;
+}
+
+div.text_cell_render {
+    padding: 0;
+}
+
+div.prompt {
+    font-size: 13px;
+}
+
+div.input_prompt {
+    padding: .7em 0.2em;
+}
+
+div.output_prompt {
+    padding: .4em .2em;
+}
+
+div.input_area {
+    margin: .2em 0.4em;
+    max-width: 580px;
+}
+
+table.dataframe {
+    font-family: Arial, sans-serif;
+    font-size: 13px;
+    line-height: 20px;
+}
+
+table.dataframe th, td {
+    padding: 4px;
+    text-align: left;
+}
+
+pre code {
+    background-color: inherit;
+}</style>
+
+        </div>
+    <footer>
+      <section class="author">
+        <div class="author__link">
+          <ul>
+            <a href="https://phofl.github.io/pages/about.html" title="About"><i class="fa fa-link"></i></a>
+              <a href="https://github.com/phofl/" target="_blank" title="github">
+                <i class="fa fa-github-square"></i>
+              </a>
+              <a href="https://www.linkedin.com/in/patrick-hoefler/" target="_blank" title="linkedin">
+                <i class="fa fa-linkedin-square"></i>
+              </a>
+              <a href="mailto:patrick_hoefler@gmx.net" target="_blank" title="mail">
+                <i class="fa fa-envelope"></i>
+              </a>
+              <a href="https://phofl.github.io/feeds/all.atom.xml" target="_blank" title="Feed">
+                <i class="fa fa-rss"></i>
+              </a>
+          </ul>
+        </div>
+      </section>
+    </footer>
+
+  <!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-6N2N937CH5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-6N2N937CH5');
+</script>
+    </body>
+</html>

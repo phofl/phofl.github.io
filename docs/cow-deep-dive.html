@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+        <meta name="author" content="Patrick Hoefler">
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width">
+        <title>Deep Dive into pandas Copy-on-Write Mode - Part I | Patrick Hoefler</title>
+
+	<link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+	<link rel="icon" href="/favicon.ico" type="image/x-icon">
+        <link rel="alternate" type="application/atom+xml" title="Patrick Hoefler blog atom feed" href="/feeds/all.atom.xml" />
+        <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,700' rel='stylesheet' type='text/css'>
+
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+        <link rel="stylesheet" type="text/css" href="/theme/css/icons.css"/>
+        <link rel="stylesheet" type="text/css" href="/theme/css/font-awesome.min.css"/>
+        <link rel="stylesheet" type="text/css" href="/theme/css/style.min.css"/>
+        <style>.highlight .hll { background-color: #ffffcc }
+.highlight .c { color: #60a0b0; font-style: italic } /* Comment */
+.highlight .err { border: 1px solid #FF0000 } /* Error */
+.highlight .k { color: #007020; font-weight: bold } /* Keyword */
+.highlight .o { color: #666666 } /* Operator */
+.highlight .cm { color: #60a0b0; font-style: italic } /* Comment.Multiline */
+.highlight .cp { color: #007020 } /* Comment.Preproc */
+.highlight .c1 { color: #60a0b0; font-style: italic } /* Comment.Single */
+.highlight .cs { color: #60a0b0; background-color: #fff0f0 } /* Comment.Special */
+.highlight .gd { color: #A00000 } /* Generic.Deleted */
+.highlight .ge { font-style: italic } /* Generic.Emph */
+.highlight .gr { color: #FF0000 } /* Generic.Error */
+.highlight .gh { color: #000080; font-weight: bold } /* Generic.Heading */
+.highlight .gi { color: #00A000 } /* Generic.Inserted */
+.highlight .go { color: #808080 } /* Generic.Output */
+.highlight .gp { color: #c65d09; font-weight: bold } /* Generic.Prompt */
+.highlight .gs { font-weight: bold } /* Generic.Strong */
+.highlight .gu { color: #800080; font-weight: bold } /* Generic.Subheading */
+.highlight .gt { color: #0040D0 } /* Generic.Traceback */
+.highlight .kc { color: #007020; font-weight: bold } /* Keyword.Constant */
+.highlight .kd { color: #007020; font-weight: bold } /* Keyword.Declaration */
+.highlight .kn { color: #007020; font-weight: bold } /* Keyword.Namespace */
+.highlight .kp { color: #007020 } /* Keyword.Pseudo */
+.highlight .kr { color: #007020; font-weight: bold } /* Keyword.Reserved */
+.highlight .kt { color: #902000 } /* Keyword.Type */
+.highlight .m { color: #40a070 } /* Literal.Number */
+.highlight .s { color: #4070a0 } /* Literal.String */
+.highlight .na { color: #4070a0 } /* Name.Attribute */
+.highlight .nb { color: #007020 } /* Name.Builtin */
+.highlight .nc { color: #0e84b5; font-weight: bold } /* Name.Class */
+.highlight .no { color: #60add5 } /* Name.Constant */
+.highlight .nd { color: #555555; font-weight: bold } /* Name.Decorator */
+.highlight .ni { color: #d55537; font-weight: bold } /* Name.Entity */
+.highlight .ne { color: #007020 } /* Name.Exception */
+.highlight .nf { color: #06287e } /* Name.Function */
+.highlight .nl { color: #002070; font-weight: bold } /* Name.Label */
+.highlight .nn { color: #0e84b5; font-weight: bold } /* Name.Namespace */
+.highlight .nt { color: #062873; font-weight: bold } /* Name.Tag */
+.highlight .nv { color: #bb60d5 } /* Name.Variable */
+.highlight .ow { color: #007020; font-weight: bold } /* Operator.Word */
+.highlight .w { color: #bbbbbb } /* Text.Whitespace */
+.highlight .mf { color: #40a070 } /* Literal.Number.Float */
+.highlight .mh { color: #40a070 } /* Literal.Number.Hex */
+.highlight .mi { color: #40a070 } /* Literal.Number.Integer */
+.highlight .mo { color: #40a070 } /* Literal.Number.Oct */
+.highlight .sb { color: #4070a0 } /* Literal.String.Backtick */
+.highlight .sc { color: #4070a0 } /* Literal.String.Char */
+.highlight .sd { color: #4070a0; font-style: italic } /* Literal.String.Doc */
+.highlight .s2 { color: #4070a0 } /* Literal.String.Double */
+.highlight .se { color: #4070a0; font-weight: bold } /* Literal.String.Escape */
+.highlight .sh { color: #4070a0 } /* Literal.String.Heredoc */
+.highlight .si { color: #70a0d0; font-style: italic } /* Literal.String.Interpol */
+.highlight .sx { color: #c65d09 } /* Literal.String.Other */
+.highlight .sr { color: #235388 } /* Literal.String.Regex */
+.highlight .s1 { color: #4070a0 } /* Literal.String.Single */
+.highlight .ss { color: #517918 } /* Literal.String.Symbol */
+.highlight .bp { color: #007020 } /* Name.Builtin.Pseudo */
+.highlight .vc { color: #bb60d5 } /* Name.Variable.Class */
+.highlight .vg { color: #bb60d5 } /* Name.Variable.Global */
+.highlight .vi { color: #bb60d5 } /* Name.Variable.Instance */
+.highlight .il { color: #40a070 } /* Literal.Number.Integer.Long */</style>
+        <style>body {
+  margin: 0;
+  padding: 0;
+  font: 15px 'Source Sans Pro', sans-serif;
+  line-height: 1.6em;
+  color: #222;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+a {
+  color: #007EE5;
+  text-decoration: none;
+}
+a:hover {
+  color: #007EE5;
+  text-decoration: none;
+}
+header.main-header {
+  background: none repeat scroll 0% 0% #205F29;
+  margin-bottom: 0px;
+}
+header.main-header a {
+  color: #fff;
+}
+header.main-header .container {
+  max-width: 1000px;
+}
+header.main-header .container nav a:hover {
+  background-color: #5C881C;
+}
+article {
+  margin: 0;
+}
+article header.about {
+  margin-bottom: 0px;
+  padding-bottom: 0px;
+}
+article header {
+  margin-bottom: 20px;
+  padding-bottom: 20px;
+}
+article header h1 {
+  margin-bottom: 2px;
+  font-weight: 700;
+  color: #000;
+}
+article header time {
+  color: #9E9E9E;
+  font-size: 0.85em;
+  float: right;
+}
+article header time.left {
+  color: #9E9E9E;
+  font-size: 0.85em;
+  float: left;
+}
+article div.social-links ul {
+  padding: 0px;
+}
+article div.social-links li {
+  display: inline;
+  font-size: 20px;
+}
+article div.social-links li a {
+  color: #000;
+  padding: 10px;
+}
+article div.social-links li a:hover {
+  color: #666;
+  text-decoration: none;
+}
+article p {
+  font-size: 16px;
+  margin-bottom: 20px;
+  line-height: 1.6em;
+}
+article p.note {
+  background: #f5f5f5;
+  border: 1px solid #ddd;
+  padding: 0.533em 0.733em;
+}
+article p.update {
+  background-color: #FEEFB3;
+  border: 1px solid #e6e68a;
+  padding: 0.533em 0.733em;
+}
+article p.alert {
+  background-color: #ffe2e2;
+  border: 1px solid #ffb2b2;
+  padding: 0.533em 0.733em;
+}
+article ul,
+article ol {
+  margin-top: 0px;
+  margin-bottom: 25px;
+}
+article li {
+  font-size: 16px;
+  line-height: 1.6em;
+}
+article a:hover {
+  text-decoration: underline;
+}
+article blockquote {
+  border-left: 2px solid #c7c7cc;
+  color: #666;
+  margin: 30px 0;
+  padding: 0 0 0 25px;
+}
+article img {
+  max-width: 100%;
+}
+article code {
+  color: #333;
+  background-color: #EEE;
+  border-radius: 0;
+  font-size: 13px;
+}
+article .meta {
+  font-size: 11px;
+}
+article .meta a:hover {
+  text-decoration: none;
+}
+article .meta div {
+  margin-bottom: 20px;
+  display: block;
+}
+article .meta a.tag {
+  margin: 0 10px 10px 0;
+  padding: 1px 12px;
+  display: inline-block;
+  font-size: 14px;
+  color: rgba(0, 0, 0, 0.8);
+  background: rgba(0, 0, 0, 0.05);
+}
+article .meta a.tag:hover {
+  background: rgba(0, 0, 0, 0.15);
+}
+article .meta a.read_more,
+article .meta a.comments_btn {
+  font-size: 14px;
+  font-weight: 800;
+  padding: 10px 20px;
+  color: #205F29;
+  background: #FFF;
+  border: 1px solid #205F29;
+}
+article .meta a.read_more:hover,
+article .meta a.comments_btn:hover {
+  color: #FFF;
+  background: #5C881C;
+}
+.index {
+  max-width: 700px;
+}
+.index article header h2 {
+  font-size: 36px;
+  margin-bottom: 2px;
+  font-weight: 700;
+}
+.index article header h2 a {
+  color: #000;
+}
+.index article header h2 a:hover {
+  color: #007EE5;
+  text-decoration: none;
+}
+.index .separator {
+  padding: 40px 0 0 0;
+  margin: 0 0 40px 0;
+  height: 10px;
+  border-bottom: solid 1px #CCC;
+}
+.index .pagination {
+  display: block;
+  margin-bottom: 100px;
+}
+.index .pagination .left {
+  text-align: right;
+}
+.index .pagination .right {
+  text-align: left;
+}
+.index .pagination a {
+  display: inline-block;
+  border: 2px solid #5C881C;
+  margin: 0 5px;
+  padding: 8px 20px;
+  font-weight: bold;
+  color: #5C881C;
+}
+.index .pagination a:hover {
+  color: #FFF;
+  background: #5C881C;
+}
+.post {
+  max-width: 700px;
+}
+.post h2:before {
+  content: "# ";
+  font-weight: bold;
+  color: #DDD;
+}
+.post h3:before {
+  content: "## ";
+  font-weight: bold;
+  color: #DDD;
+}
+.post h4:before {
+  content: "### ";
+  font-weight: bold;
+  color: #DDD;
+}
+.post article .meta {
+  margin: 50px 0 100px;
+}
+.list {
+  max-width: 700px;
+}
+.list ul.double-list {
+  margin: 0 auto 60px;
+  padding: 0;
+  list-style-type: none;
+}
+.list ul.double-list li {
+  padding: 5px 0;
+}
+.list ul.double-list li h2 {
+  font-size: 1em;
+  display: inline;
+  font-weight: normal;
+}
+.list ul.double-list li span {
+  font-family: sans-serif;
+  text-transform: uppercase;
+  text-align: right;
+  float: right;
+  padding-top: 3px;
+  font-size: 12px;
+  color: #999;
+}
+.full-width-content {
+  padding-top: 10px;
+  padding-left: 0px;
+  padding-right: 0px;
+  margin-left: -20px;
+  margin-right: -20px;
+}
+.col-xs-1,
+.col-sm-1,
+.col-md-1,
+.col-lg-1,
+.col-xs-2,
+.col-sm-2,
+.col-md-2,
+.col-lg-2,
+.col-xs-3,
+.col-sm-3,
+.col-md-3,
+.col-lg-3,
+.col-xs-4,
+.col-sm-4,
+.col-md-4,
+.col-lg-4,
+.col-xs-5,
+.col-sm-5,
+.col-md-5,
+.col-lg-5,
+.col-xs-6,
+.col-sm-6,
+.col-md-6,
+.col-lg-6,
+.col-xs-7,
+.col-sm-7,
+.col-md-7,
+.col-lg-7,
+.col-xs-8,
+.col-sm-8,
+.col-md-8,
+.col-lg-8,
+.col-xs-9,
+.col-sm-9,
+.col-md-9,
+.col-lg-9,
+.col-xs-10,
+.col-sm-10,
+.col-md-10,
+.col-lg-10,
+.col-xs-11,
+.col-sm-11,
+.col-md-11,
+.col-lg-11,
+.col-xs-12,
+.col-sm-12,
+.col-md-12,
+.col-lg-12 {
+  padding-right: 0px;
+  padding-left: 0px;
+}</style>
+
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+	<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+
+
+    </head>
+
+    <body>
+        <header class="navbar navbar-inverse bs-docs-nav">
+            <div class="container-fluid">
+                <div class="navbar-header">
+		  <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#theNavbar">
+		    <span class="icon-bar"></span>
+		    <span class="icon-bar"></span>
+		    <span class="icon-bar"></span>
+		  </button>
+                  <a class="navbar-brand" href="/" title="Home" class="title">Patrick Hoefler</a>
+                </div>
+                <nav class="collapse navbar-collapse bs-navbar-collapse" role="navigation" id="theNavbar">
+		    <ul class="nav navbar-nav navbar-right">
+                            <li><a href="/pages/about.html" title="About">About</a></li>
+                            <li><a href="/archives.html" title="Archive">Archive</a></li>
+                    </ul>
+                </nav>
+            </div>
+        </header>
+
+        <div id="wrap">
+<div class="container post">
+    <article>
+        <header>
+            <h1>Deep Dive into pandas Copy-on-Write Mode - Part I</h1>
+            <time datetime="article.date.isoformat()" pubdate>Wed 09 August 2023</time>
+        </header>
+
+        <div class="article_content">
+            <p><em>Explaining how Copy-on-Write works internally</em></p>
+<h2 id="introduction">Introduction</h2>
+<p><a href="https://medium.com/gitconnected/welcoming-pandas-2-0-194094e4275b">pandas 2.0</a> was released in 
+early April and brought many improvements to the new Copy-on-Write (CoW)
+mode. The feature is expected to become the default in pandas 3.0, which is scheduled for
+April 2024 at the moment. There are no plans for a legacy or non-CoW mode.</p>
+<p>This series of posts will explain how Copy-on-Write works internally to help users understand what's 
+going on, show how to use it effectively and illustrate how to adapt your code. This will include 
+examples on how to leverage the mechanism to get the most efficient performance and also show a 
+couple of anti-patterns that will result in unnecessary bottlenecks. I wrote a 
+<a href="https://medium.com/towards-data-science/a-solution-for-inconsistencies-in-indexing-operations-in-pandas-b76e10719744">short introduction</a>
+to Copy-on-Write a couple of months ago.</p>
+<p>I wrote <a href="https://medium.com/better-programming/pandas-internals-explained-545f14a941c1">a short post</a> 
+that explains the data structure of pandas which will help understand some terminology that is 
+necessary for CoW.</p>
+<p>I am part of the pandas core team and was heavily involved in implementing and improving CoW so far. 
+I am an open source engineer for <a href="https://www.coiled.io">Coiled</a> where I work on Dask, 
+including improving the pandas integration and ensuring that Dask is compliant with CoW.</p>
+<h1 id="how-copy-on-write-changes-pandas-behavior">How Copy-on-Write changes pandas behavior</h1>
+<p>Many of you are probably familiar with the following caveats in pandas:</p>
+<pre><code class="language-python">import pandas as pd
+
+df = pd.DataFrame({&quot;student_id&quot;: [1, 2, 3], &quot;grade&quot;: [&quot;A&quot;, &quot;C&quot;, &quot;D&quot;]})
+</code></pre>
+<p>Let's select the grade-column and overwrite the first row with <code>"E"</code>.</p>
+<pre><code class="language-python">grades = df[&quot;grade&quot;]
+grades.iloc[0] = &quot;E&quot;
+df
+
+   student_id grade
+0           1     E
+1           2     C
+2           3     D
+</code></pre>
+<p>Unfortunately, this also updated <code>df</code> and not only <code>grades</code>, which has the potential to 
+introduce hard to find bugs. CoW will disallow this behavior and ensures that only <code>df</code> is
+updated. We also see a false-positive <code>SettingWithCopyWarning</code> that doesn't help us here.</p>
+<p>Let's look at a <code>ChainedIndexing</code> example that is not doing anything:</p>
+<pre><code class="language-python">df[df[&quot;student_id&quot;] &gt; 2][&quot;grades&quot;] = &quot;F&quot;
+df
+
+   student_id grade
+0           1     A
+1           2     C
+2           3     D
+</code></pre>
+<p>We again get a <code>SettingWithCopyWarning</code> but nothing happens to <code>df</code> in this example. All these
+gotchas come down to copy and view rules in NumPy, which is what pandas uses under the hood. pandas
+users have to be aware of these rules and how they apply to pandas DataFrames to understand why
+similar code patterns produce different results. </p>
+<p><strong>CoW cleans up all these inconsistencies</strong>. Users can only update one object at a time when CoW is
+enabled, e.g. <code>df</code> would be unchanged in our first example since only <code>grades</code> is updated at
+that time and the second example raises a <code>ChainedAssignmentError</code> instead of doing nothing.
+Generally, it won't be possible to update two objects at once, e.g., every object behaves as it
+is a copy of the previous object.</p>
+<p>There are many more of these cases, but going through all of them is not in scope here.</p>
+<h1 id="how-it-works">How it works</h1>
+<p>Let's look into Copy-on-Write in more detail and highlight some facts that are good to know. This is 
+the main part of this post and is fairly technical.</p>
+<p>Copy-on-Write promises that <strong>any DataFrame or Series derived from another in</strong> 
+<strong>any way always behaves as a copy</strong>. This means that it is not possible to modify more than one
+object with a single operation, e.g. our first example above would only modify <code>grades</code>.</p>
+<p>A very defensive approach to guarantee this would be to copy the DataFrame and its data in every 
+operation, which would avoid views in pandas altogether. This would guarantee CoW semantics but 
+also incur a huge performance penalty, so this wasn't a viable option. </p>
+<p>We will now dive into the mechanism that ensures that no two objects are updated with a single
+operation <strong>and</strong> that our data isn't unnecessarily copied. The second part is what makes the
+implementation interesting.</p>
+<p>We have to know exactly when to trigger a copy to avoid copies that aren't absolutely necessary.
+Potential copies are only necessary if we try to mutate the values of one pandas object without
+copying it's data. We have to
+trigger a copy, if the data of this object is shared with another pandas object.
+This means that we have to keep track of whether one NumPy array is referenced by two DataFrames (generally, we have to be
+aware if one NumPy array is referenced by two pandas objects, but I will use the term DataFrame for 
+simplicity).</p>
+<pre><code class="language-python">df = pd.DataFrame({&quot;student_id&quot;: [1, 2, 3], &quot;grade&quot;: [1, 2, 3]})
+df2 = df[:]
+</code></pre>
+<p>This statement creates a DataFrame <code>df</code> and a view of this DataFrame <code>df2</code>. View means that
+both DataFrames are backed by the same underlying NumPy array. When we look at this with CoW, 
+<code>df</code> has to be aware that <code>df2</code> references its NumPy array too. This is not sufficient 
+though. <code>df2</code> also has to be aware that <code>df</code> references its NumPy array. If both objects
+are aware that there is another DataFrame referencing the same NumPy array, we can trigger a copy
+in case one of them is modified, e.g.:</p>
+<pre><code class="language-python">df.iloc[0, 0] = 100
+</code></pre>
+<p><code>df</code> is modified inplace here. <code>df</code> knows that there is another object that references the same data, 
+e.g. it triggers a copy. It is not aware which object references the same data, just that there is
+another object out there.</p>
+<p>Let's take a look at how we can achieve this. We created an internal class <code>BlockValuesRefs</code> that
+is used to store this information, it points to all DataFrames that reference a given NumPy array. </p>
+<p>There are three different types of operation that can create a DataFrame:</p>
+<ul>
+<li>A DataFrame is created from external data, e.g. through <code>pd.DataFrame(...)</code> or through any
+  I/O method.</li>
+<li>A new DataFrame is created through a pandas operation that triggers a copy of the original data,
+  e.g. <code>dropna</code> creates a copy in almost all cases.</li>
+<li>A new DataFrames is created through a pandas operation that <strong>does not</strong> trigger a copy of the
+  original data, e.g. <code>df2 = df.reset_index()</code>.</li>
+</ul>
+<p>The first two cases are simple. When the DataFrame is created, the NumPy arrays that back it are
+connected to a fresh <code>BlockValuesRefs</code> object. These arrays are only referenced by the new
+object, so we don't have to keep track of any other objects. The object creates a <code>weakref</code> that points
+to the <code>Block</code> that wraps the NumPy array and stores this reference internally. The concept
+of Blocks is explained <a href="https://medium.com/better-programming/pandas-internals-explained-545f14a941c1">here</a>.</p>
+<blockquote>
+<p>A <a href="https://docs.python.org/3/library/weakref.html">weakref</a> creates a reference to any Python
+object. It does not keep this object alive when it would normally go out of scope.</p>
+<p>```python
+import weakref</p>
+<p>class Dummy:
+    def <strong>init</strong>(self, a):
+        self.a = a</p>
+<p>In[1]: obj = Dummy(1)
+In[2]: ref = weakref.ref(obj)
+In[3]: ref()
+Out[3]: &lt;<strong>main</strong>.Dummy object at 0x108187d60&gt;
+In[4]: obj = Dummy(2)
+```</p>
+<p>This example creates a Dummy object and a weak reference to this object. Afterward, we assign another
+object to the same variable, e.g. the initial object goes out of scope and is garbage collected. The weak reference
+does not interfere with this process. If you resolve the weak reference, it will point to <code>None</code>
+instead of the original object.</p>
+<p><code>python
+In[5]: ref()
+Out[5]: None</code></p>
+<p>This ensures that we don't keep any arrays alive that would otherwise be garbage collected.</p>
+</blockquote>
+<p>Let's take a look at how these objects are organized:</p>
+<p><img alt="" src="../images/deep_dive_cow/copy-on-write.svg"></p>
+<p>Our example has two columns <code>"a"</code> and <code>"b"</code> which both have dtype <code>"int64"</code>. They are backed
+by one Block that holds the data for both columns. The Block holds a hard reference to the reference
+tracking object, ensuring that it stays alive as long as the Block is not garbage collected. The
+reference tracking object holds a weak reference to the Block. This enables the object to track
+the lifecycle of this block but does not prevent garbage collection. The reference tracking object
+does not hold a weak reference to any other Block yet.</p>
+<p>These are the easy scenarios. We know that no other pandas object shares the same NumPy array, so we can
+simply instantiate a new reference tracking object. </p>
+<p>The third case is more complicated. The new object views the same data as the original object.
+This means that both objects point to the same memory. Our operation will create a new Block that
+references the same NumPy array, this is called a shallow copy. We now have to register this new 
+<code>Block</code> in our reference tracking mechanism. We will register our new <code>Block</code> with the reference 
+tracking object that is connected to the old object.</p>
+<pre><code class="language-python">df2 = df.reset_index(drop=True)
+</code></pre>
+<p><img alt="" src="../images/deep_dive_cow/copy-on-write_view.svg"></p>
+<p>Our <code>BlockValuesRefs</code> now points to the Block that backs the initial <code>df</code> and the newly created
+Block that backs <code>df2</code>. This ensures that we are always aware about all DataFrames that point to
+the same memory. </p>
+<p>We can now ask the reference tracking object how many Blocks pointing to the same NumPy array
+are alive. The reference tracking object evaluates the weak references and tells us that more
+than one object references the same data. This enables us to trigger a copy internally if one of 
+them is modified inplace. </p>
+<pre><code class="language-python">df2.iloc[0, 0] = 100
+</code></pre>
+<p>The Block in <code>df2</code> is copied through a deep copy, creating a new Block that has its own data and
+reference tracking object. The original block that was backing <code>df2</code> can now be garbage collected,
+which ensures that the arrays backing <code>df</code> and <code>df2</code> don't share any memory.</p>
+<p><img alt="" src="../images/deep_dive_cow/copy-on-write_copy.svg"></p>
+<p>Let's look at a different scenario.</p>
+<pre><code class="language-python">df = None
+df2.iloc[0, 0] = 100
+</code></pre>
+<p><code>df</code> is invalidated before we modify <code>df2</code>. Consequently, the weakref of our reference tracking
+object, that points to the Block that backed <code>df</code>, evaluates to <code>None</code>. This enables us to modify 
+<code>df2</code> without triggering a copy.</p>
+<p><img alt="" src="../images/deep_dive_cow/copy-on-write_invalidate.svg"></p>
+<p>Our reference tracking object points to only one DataFrame which enables us to do the operation
+inplace without triggering a copy.</p>
+<p><code>reset_index</code> above creates a view. The mechanism is a bit simpler if we have an operation that 
+triggers a copy internally.</p>
+<pre><code class="language-python">df2 = df.copy()
+</code></pre>
+<p>This immediately instantiates a new reference tracking object for our DataFrame <code>df2</code>.</p>
+<p><img alt="" src="../images/deep_dive_cow/copy-on-write_copy_immediately.svg"></p>
+<h2 id="conclusion">Conclusion</h2>
+<p>We have investigated how the Copy-on-Write tracking mechanism works and when we trigger a copy. 
+The mechanism defers copies in pandas as much as possible, which is quite different from the non-CoW 
+behavior. The reference tracking mechanism keeps track of all DataFrames that share memory,
+enabling more consistent behavior in pandas.</p>
+<p>The next part in this series will explain techniques that are used to make this mechanism more
+efficient.</p>
+<p>Thank you for reading. Feel free to reach out to share your thoughts and feedback 
+about Copy-on-Write.</p>
+        </div>
+
+        <div class="meta">
+            <div>
+                    <a href="https://phofl.github.io/tag/pandas.html" class="tag">pandas</a>
+                    <a href="https://phofl.github.io/tag/copy-on-write.html" class="tag">copy-on-write</a>
+                    <a href="https://phofl.github.io/tag/performance.html" class="tag">performance</a>
+            </div>
+            <div>
+                <a style="font-size:14pt;color: black;">Authors: </a>
+                    <a style="font-size:14pt;color: black;">Patrick Hoefler        </a>
+            </div>
+        </div>
+    </article>
+
+
+</div>
+
+<style type="text/css">
+{
+    max-width: 700px;
+}
+
+.text_cell .prompt {
+    display: none;
+}
+
+div.cell {
+    padding: 0;
+}
+
+div.text_cell_render {
+    padding: 0;
+}
+
+div.prompt {
+    font-size: 13px;
+}
+
+div.input_prompt {
+    padding: .7em 0.2em;
+}
+
+div.output_prompt {
+    padding: .4em .2em;
+}
+
+div.input_area {
+    margin: .2em 0.4em;
+    max-width: 580px;
+}
+
+table.dataframe {
+    font-family: Arial, sans-serif;
+    font-size: 13px;
+    line-height: 20px;
+}
+
+table.dataframe th, td {
+    padding: 4px;
+    text-align: left;
+}
+
+pre code {
+    background-color: inherit;
+}</style>
+
+        </div>
+    <footer>
+      <section class="author">
+        <div class="author__link">
+          <ul>
+            <a href="https://phofl.github.io/pages/about.html" title="About"><i class="fa fa-link"></i></a>
+              <a href="https://github.com/phofl/" target="_blank" title="github">
+                <i class="fa fa-github-square"></i>
+              </a>
+              <a href="https://www.linkedin.com/in/patrick-hoefler/" target="_blank" title="linkedin">
+                <i class="fa fa-linkedin-square"></i>
+              </a>
+              <a href="mailto:patrick_hoefler@gmx.net" target="_blank" title="mail">
+                <i class="fa fa-envelope"></i>
+              </a>
+              <a href="https://phofl.github.io/feeds/all.atom.xml" target="_blank" title="Feed">
+                <i class="fa fa-rss"></i>
+              </a>
+          </ul>
+        </div>
+      </section>
+    </footer>
+
+  <!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-6N2N937CH5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-6N2N937CH5');
+</script>
+    </body>
+</html>

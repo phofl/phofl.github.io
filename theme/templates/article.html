@@ -1,47 +1,49 @@
 {% extends "base.html" %}
-{% block head %}
-<meta name="keywords" content="{{ article.tags|join(', ')  }}">
+{% block title %}{{ article.title }}{% endblock %}
+{% block headerimg %}{% if article.headerimg %}{{ article.headerimg }}{% else %}{{ DEFAULT_HEADER_BG }}{% endif %}{% endblock %}
+
+{% block extra_head %}
+{% if 'angular' in article.include %}
+<script src="//ajax.googleapis.com/ajax/libs/angularjs/1.0.7/angular.min.js"></script>
+{% endif %}
+{% if 'jquery' in article.include %}
+<script src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+{% endif %}
 {% endblock %}
 
-{% block title %}&ndash; {{ article.title }}{% endblock %}
-
 {% block content %}
-<article>
-  <div class="article__title">
-    <h1><a href="{{ SITEURL }}/{{ article.url }}">{{ article.title }}</a></h1>
-  </div>
-  <div class="article__meta">
-    <p class="article__meta__post-date">Posted on: {{ article.locale_date }}</p>
-    {% if DISPLAY_CATEGORIES == '' or DISPLAY_CATEGORIES %}
-    <p class="article__meta__category">Category: <a href="{{ SITEURL }}/{{ article.category.url }}">{{ article.category }}</a>
-    {% endif %}
-      {% if article.tags %} Tags:
-      {% for tag in article.tags %}
-      <a href="{{ SITEURL }}/{{ tag.url }}">#{{ tag }}</a>{% if not loop.last %},{% endif %}
-      {% endfor %}
-      {% endif %}
-    </p>
-  </div>
-  <div class="article__text">
-    {{ article.content }}
-  </div>
-  {% if SHOW_SOCIAL_SHARE_BUTTON %}
-    {% include "modules/social-tools.html" %}
-  {% endif %}
-  {% include "modules/google-adsense.html" %}
-  {% if DISQUS_SITENAME %}
-  <div id="article__comments">
-    <div id="disqus_thread"></div>
-    <script type="text/javascript">
-        var disqus_identifier = "{{ article.url }}";
-        (function() {
-             var dsq = document.createElement('script'); dsq.type = 'text/javascript'; dsq.async = true;
-             dsq.src = '//{{ DISQUS_SITENAME }}.disqus.com/embed.js';
-             (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(dsq);
-         })();
-    </script>
-  </div>
-  {% endif %}
+<div class="container post">
+    <article>
+        <header>
+            <h1>{{ article.title }}</h1>
+            <time datetime="article.date.isoformat()" pubdate>{{ article.locale_date }}</time>
+        </header>
 
-</article>
+        <div class="article_content">
+            {{ article.content }}
+        </div>
+
+        <div class="meta">
+            <div>
+                {% for tag in article.tags %}
+                    <a href="{{ SITEURL }}/{{ tag.url }}" class="tag">{{ tag }}</a>
+                {% endfor %}
+            </div>
+            <div>
+                <a style="font-size:14pt;color: black;">Authors: </a>
+                {% for author in article.authors %}
+                    <a style="font-size:14pt;color: black;">{{author}}        </a>
+                {% endfor %}
+            </div>
+        </div>
+    </article>
+
+  {% include '_includes/disqus_thread.html' %}
+
+</div>
+
+<style type="text/css">
+{% include 'ipynb.css' %}
+</style>
+
 {% endblock %}

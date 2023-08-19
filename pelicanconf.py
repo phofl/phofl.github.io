@@ -43,6 +43,7 @@ MARKDOWN = {
     'output_format': 'html5',
 }
 ABOUT_PAGE = '/pages/about.html'
+SHOW_ARCHIVES = True
 GITHUB_USERNAME = 'phofl'
 AUTHOR_BLOG = 'https://phofl.github.io'
 

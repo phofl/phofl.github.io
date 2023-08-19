@@ -1,5 +1,868 @@
 <?xml version="1.0" encoding="utf-8"?>
-<feed xmlns="http://www.w3.org/2005/Atom"><title>Patrick Hoefler - pandas</title><link href="https://phofl.github.io/" rel="alternate"></link><link href="https://phofl.github.io/feeds/pandas.atom.xml" rel="self"></link><id>https://phofl.github.io/</id><updated>2023-03-23T00:00:00+01:00</updated><entry><title>Welcoming pandas 2.0</title><link href="https://phofl.github.io/pandas-20.html" rel="alternate"></link><published>2023-03-23T00:00:00+01:00</published><updated>2023-03-23T00:00:00+01:00</updated><author><name>Patrick Hoefler</name></author><id>tag:phofl.github.io,2023-03-23:/pandas-20.html</id><summary type="html">&lt;p&gt;&lt;em&gt;How the API is changing and how to leverage new functionalities&lt;/em&gt;&lt;/p&gt;
+<feed xmlns="http://www.w3.org/2005/Atom"><title>Patrick Hoefler - pandas</title><link href="https://phofl.github.io/" rel="alternate"></link><link href="https://phofl.github.io/feeds/pandas.atom.xml" rel="self"></link><id>https://phofl.github.io/</id><updated>2023-08-09T00:00:00+02:00</updated><entry><title>Deep Dive into pandas Copy-on-Write Mode - Part I</title><link href="https://phofl.github.io/cow-deep-dive.html" rel="alternate"></link><published>2023-08-09T00:00:00+02:00</published><updated>2023-08-09T00:00:00+02:00</updated><author><name>Patrick Hoefler</name></author><id>tag:phofl.github.io,2023-08-09:/cow-deep-dive.html</id><summary type="html">&lt;p&gt;&lt;em&gt;Explaining how Copy-on-Write works internally&lt;/em&gt;&lt;/p&gt;
+&lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
+&lt;p&gt;&lt;a href="https://medium.com/gitconnected/welcoming-pandas-2-0-194094e4275b"&gt;pandas 2.0&lt;/a&gt; was released in 
+early April and brought many improvements to the new Copy-on-Write (CoW)
+mode. The feature is expected to become the default in pandas 3.0, which is scheduled for
+April 2024 at the moment. There are no plans for …&lt;/p&gt;</summary><content type="html">&lt;p&gt;&lt;em&gt;Explaining how Copy-on-Write works internally&lt;/em&gt;&lt;/p&gt;
+&lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
+&lt;p&gt;&lt;a href="https://medium.com/gitconnected/welcoming-pandas-2-0-194094e4275b"&gt;pandas 2.0&lt;/a&gt; was released in 
+early April and brought many improvements to the new Copy-on-Write (CoW)
+mode. The feature is expected to become the default in pandas 3.0, which is scheduled for
+April 2024 at the moment. There are no plans for a legacy or non-CoW mode.&lt;/p&gt;
+&lt;p&gt;This series of posts will explain how Copy-on-Write works internally to help users understand what's 
+going on, show how to use it effectively and illustrate how to adapt your code. This will include 
+examples on how to leverage the mechanism to get the most efficient performance and also show a 
+couple of anti-patterns that will result in unnecessary bottlenecks. I wrote a 
+&lt;a href="https://medium.com/towards-data-science/a-solution-for-inconsistencies-in-indexing-operations-in-pandas-b76e10719744"&gt;short introduction&lt;/a&gt;
+to Copy-on-Write a couple of months ago.&lt;/p&gt;
+&lt;p&gt;I wrote &lt;a href="https://medium.com/better-programming/pandas-internals-explained-545f14a941c1"&gt;a short post&lt;/a&gt; 
+that explains the data structure of pandas which will help understand some terminology that is 
+necessary for CoW.&lt;/p&gt;
+&lt;p&gt;I am part of the pandas core team and was heavily involved in implementing and improving CoW so far. 
+I am an open source engineer for &lt;a href="https://www.coiled.io"&gt;Coiled&lt;/a&gt; where I work on Dask, 
+including improving the pandas integration and ensuring that Dask is compliant with CoW.&lt;/p&gt;
+&lt;h1 id="how-copy-on-write-changes-pandas-behavior"&gt;How Copy-on-Write changes pandas behavior&lt;/h1&gt;
+&lt;p&gt;Many of you are probably familiar with the following caveats in pandas:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;import pandas as pd
+
+df = pd.DataFrame({&amp;quot;student_id&amp;quot;: [1, 2, 3], &amp;quot;grade&amp;quot;: [&amp;quot;A&amp;quot;, &amp;quot;C&amp;quot;, &amp;quot;D&amp;quot;]})
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Let's select the grade-column and overwrite the first row with &lt;code&gt;"E"&lt;/code&gt;.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;grades = df[&amp;quot;grade&amp;quot;]
+grades.iloc[0] = &amp;quot;E&amp;quot;
+df
+
+   student_id grade
+0           1     E
+1           2     C
+2           3     D
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Unfortunately, this also updated &lt;code&gt;df&lt;/code&gt; and not only &lt;code&gt;grades&lt;/code&gt;, which has the potential to 
+introduce hard to find bugs. CoW will disallow this behavior and ensures that only &lt;code&gt;df&lt;/code&gt; is
+updated. We also see a false-positive &lt;code&gt;SettingWithCopyWarning&lt;/code&gt; that doesn't help us here.&lt;/p&gt;
+&lt;p&gt;Let's look at a &lt;code&gt;ChainedIndexing&lt;/code&gt; example that is not doing anything:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df[df[&amp;quot;student_id&amp;quot;] &amp;gt; 2][&amp;quot;grades&amp;quot;] = &amp;quot;F&amp;quot;
+df
+
+   student_id grade
+0           1     A
+1           2     C
+2           3     D
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;We again get a &lt;code&gt;SettingWithCopyWarning&lt;/code&gt; but nothing happens to &lt;code&gt;df&lt;/code&gt; in this example. All these
+gotchas come down to copy and view rules in NumPy, which is what pandas uses under the hood. pandas
+users have to be aware of these rules and how they apply to pandas DataFrames to understand why
+similar code patterns produce different results. &lt;/p&gt;
+&lt;p&gt;&lt;strong&gt;CoW cleans up all these inconsistencies&lt;/strong&gt;. Users can only update one object at a time when CoW is
+enabled, e.g. &lt;code&gt;df&lt;/code&gt; would be unchanged in our first example since only &lt;code&gt;grades&lt;/code&gt; is updated at
+that time and the second example raises a &lt;code&gt;ChainedAssignmentError&lt;/code&gt; instead of doing nothing.
+Generally, it won't be possible to update two objects at once, e.g., every object behaves as it
+is a copy of the previous object.&lt;/p&gt;
+&lt;p&gt;There are many more of these cases, but going through all of them is not in scope here.&lt;/p&gt;
+&lt;h1 id="how-it-works"&gt;How it works&lt;/h1&gt;
+&lt;p&gt;Let's look into Copy-on-Write in more detail and highlight some facts that are good to know. This is 
+the main part of this post and is fairly technical.&lt;/p&gt;
+&lt;p&gt;Copy-on-Write promises that &lt;strong&gt;any DataFrame or Series derived from another in&lt;/strong&gt; 
+&lt;strong&gt;any way always behaves as a copy&lt;/strong&gt;. This means that it is not possible to modify more than one
+object with a single operation, e.g. our first example above would only modify &lt;code&gt;grades&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;A very defensive approach to guarantee this would be to copy the DataFrame and its data in every 
+operation, which would avoid views in pandas altogether. This would guarantee CoW semantics but 
+also incur a huge performance penalty, so this wasn't a viable option. &lt;/p&gt;
+&lt;p&gt;We will now dive into the mechanism that ensures that no two objects are updated with a single
+operation &lt;strong&gt;and&lt;/strong&gt; that our data isn't unnecessarily copied. The second part is what makes the
+implementation interesting.&lt;/p&gt;
+&lt;p&gt;We have to know exactly when to trigger a copy to avoid copies that aren't absolutely necessary.
+Potential copies are only necessary if we try to mutate the values of one pandas object without
+copying it's data. We have to
+trigger a copy, if the data of this object is shared with another pandas object.
+This means that we have to keep track of whether one NumPy array is referenced by two DataFrames (generally, we have to be
+aware if one NumPy array is referenced by two pandas objects, but I will use the term DataFrame for 
+simplicity).&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df = pd.DataFrame({&amp;quot;student_id&amp;quot;: [1, 2, 3], &amp;quot;grade&amp;quot;: [1, 2, 3]})
+df2 = df[:]
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;This statement creates a DataFrame &lt;code&gt;df&lt;/code&gt; and a view of this DataFrame &lt;code&gt;df2&lt;/code&gt;. View means that
+both DataFrames are backed by the same underlying NumPy array. When we look at this with CoW, 
+&lt;code&gt;df&lt;/code&gt; has to be aware that &lt;code&gt;df2&lt;/code&gt; references its NumPy array too. This is not sufficient 
+though. &lt;code&gt;df2&lt;/code&gt; also has to be aware that &lt;code&gt;df&lt;/code&gt; references its NumPy array. If both objects
+are aware that there is another DataFrame referencing the same NumPy array, we can trigger a copy
+in case one of them is modified, e.g.:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df.iloc[0, 0] = 100
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;&lt;code&gt;df&lt;/code&gt; is modified inplace here. &lt;code&gt;df&lt;/code&gt; knows that there is another object that references the same data, 
+e.g. it triggers a copy. It is not aware which object references the same data, just that there is
+another object out there.&lt;/p&gt;
+&lt;p&gt;Let's take a look at how we can achieve this. We created an internal class &lt;code&gt;BlockValuesRefs&lt;/code&gt; that
+is used to store this information, it points to all DataFrames that reference a given NumPy array. &lt;/p&gt;
+&lt;p&gt;There are three different types of operation that can create a DataFrame:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;A DataFrame is created from external data, e.g. through &lt;code&gt;pd.DataFrame(...)&lt;/code&gt; or through any
+  I/O method.&lt;/li&gt;
+&lt;li&gt;A new DataFrame is created through a pandas operation that triggers a copy of the original data,
+  e.g. &lt;code&gt;dropna&lt;/code&gt; creates a copy in almost all cases.&lt;/li&gt;
+&lt;li&gt;A new DataFrames is created through a pandas operation that &lt;strong&gt;does not&lt;/strong&gt; trigger a copy of the
+  original data, e.g. &lt;code&gt;df2 = df.reset_index()&lt;/code&gt;.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;The first two cases are simple. When the DataFrame is created, the NumPy arrays that back it are
+connected to a fresh &lt;code&gt;BlockValuesRefs&lt;/code&gt; object. These arrays are only referenced by the new
+object, so we don't have to keep track of any other objects. The object creates a &lt;code&gt;weakref&lt;/code&gt; that points
+to the &lt;code&gt;Block&lt;/code&gt; that wraps the NumPy array and stores this reference internally. The concept
+of Blocks is explained &lt;a href="https://medium.com/better-programming/pandas-internals-explained-545f14a941c1"&gt;here&lt;/a&gt;.&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;A &lt;a href="https://docs.python.org/3/library/weakref.html"&gt;weakref&lt;/a&gt; creates a reference to any Python
+object. It does not keep this object alive when it would normally go out of scope.&lt;/p&gt;
+&lt;p&gt;```python
+import weakref&lt;/p&gt;
+&lt;p&gt;class Dummy:
+    def &lt;strong&gt;init&lt;/strong&gt;(self, a):
+        self.a = a&lt;/p&gt;
+&lt;p&gt;In[1]: obj = Dummy(1)
+In[2]: ref = weakref.ref(obj)
+In[3]: ref()
+Out[3]: &amp;lt;&lt;strong&gt;main&lt;/strong&gt;.Dummy object at 0x108187d60&amp;gt;
+In[4]: obj = Dummy(2)
+```&lt;/p&gt;
+&lt;p&gt;This example creates a Dummy object and a weak reference to this object. Afterward, we assign another
+object to the same variable, e.g. the initial object goes out of scope and is garbage collected. The weak reference
+does not interfere with this process. If you resolve the weak reference, it will point to &lt;code&gt;None&lt;/code&gt;
+instead of the original object.&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;python
+In[5]: ref()
+Out[5]: None&lt;/code&gt;&lt;/p&gt;
+&lt;p&gt;This ensures that we don't keep any arrays alive that would otherwise be garbage collected.&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;Let's take a look at how these objects are organized:&lt;/p&gt;
+&lt;p&gt;&lt;img alt="" src="../images/deep_dive_cow/copy-on-write.svg"&gt;&lt;/p&gt;
+&lt;p&gt;Our example has two columns &lt;code&gt;"a"&lt;/code&gt; and &lt;code&gt;"b"&lt;/code&gt; which both have dtype &lt;code&gt;"int64"&lt;/code&gt;. They are backed
+by one Block that holds the data for both columns. The Block holds a hard reference to the reference
+tracking object, ensuring that it stays alive as long as the Block is not garbage collected. The
+reference tracking object holds a weak reference to the Block. This enables the object to track
+the lifecycle of this block but does not prevent garbage collection. The reference tracking object
+does not hold a weak reference to any other Block yet.&lt;/p&gt;
+&lt;p&gt;These are the easy scenarios. We know that no other pandas object shares the same NumPy array, so we can
+simply instantiate a new reference tracking object. &lt;/p&gt;
+&lt;p&gt;The third case is more complicated. The new object views the same data as the original object.
+This means that both objects point to the same memory. Our operation will create a new Block that
+references the same NumPy array, this is called a shallow copy. We now have to register this new 
+&lt;code&gt;Block&lt;/code&gt; in our reference tracking mechanism. We will register our new &lt;code&gt;Block&lt;/code&gt; with the reference 
+tracking object that is connected to the old object.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df2 = df.reset_index(drop=True)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;&lt;img alt="" src="../images/deep_dive_cow/copy-on-write_view.svg"&gt;&lt;/p&gt;
+&lt;p&gt;Our &lt;code&gt;BlockValuesRefs&lt;/code&gt; now points to the Block that backs the initial &lt;code&gt;df&lt;/code&gt; and the newly created
+Block that backs &lt;code&gt;df2&lt;/code&gt;. This ensures that we are always aware about all DataFrames that point to
+the same memory. &lt;/p&gt;
+&lt;p&gt;We can now ask the reference tracking object how many Blocks pointing to the same NumPy array
+are alive. The reference tracking object evaluates the weak references and tells us that more
+than one object references the same data. This enables us to trigger a copy internally if one of 
+them is modified inplace. &lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df2.iloc[0, 0] = 100
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;The Block in &lt;code&gt;df2&lt;/code&gt; is copied through a deep copy, creating a new Block that has its own data and
+reference tracking object. The original block that was backing &lt;code&gt;df2&lt;/code&gt; can now be garbage collected,
+which ensures that the arrays backing &lt;code&gt;df&lt;/code&gt; and &lt;code&gt;df2&lt;/code&gt; don't share any memory.&lt;/p&gt;
+&lt;p&gt;&lt;img alt="" src="../images/deep_dive_cow/copy-on-write_copy.svg"&gt;&lt;/p&gt;
+&lt;p&gt;Let's look at a different scenario.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df = None
+df2.iloc[0, 0] = 100
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;&lt;code&gt;df&lt;/code&gt; is invalidated before we modify &lt;code&gt;df2&lt;/code&gt;. Consequently, the weakref of our reference tracking
+object, that points to the Block that backed &lt;code&gt;df&lt;/code&gt;, evaluates to &lt;code&gt;None&lt;/code&gt;. This enables us to modify 
+&lt;code&gt;df2&lt;/code&gt; without triggering a copy.&lt;/p&gt;
+&lt;p&gt;&lt;img alt="" src="../images/deep_dive_cow/copy-on-write_invalidate.svg"&gt;&lt;/p&gt;
+&lt;p&gt;Our reference tracking object points to only one DataFrame which enables us to do the operation
+inplace without triggering a copy.&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;reset_index&lt;/code&gt; above creates a view. The mechanism is a bit simpler if we have an operation that 
+triggers a copy internally.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df2 = df.copy()
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;This immediately instantiates a new reference tracking object for our DataFrame &lt;code&gt;df2&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;&lt;img alt="" src="../images/deep_dive_cow/copy-on-write_copy_immediately.svg"&gt;&lt;/p&gt;
+&lt;h2 id="conclusion"&gt;Conclusion&lt;/h2&gt;
+&lt;p&gt;We have investigated how the Copy-on-Write tracking mechanism works and when we trigger a copy. 
+The mechanism defers copies in pandas as much as possible, which is quite different from the non-CoW 
+behavior. The reference tracking mechanism keeps track of all DataFrames that share memory,
+enabling more consistent behavior in pandas.&lt;/p&gt;
+&lt;p&gt;The next part in this series will explain techniques that are used to make this mechanism more
+efficient.&lt;/p&gt;
+&lt;p&gt;Thank you for reading. Feel free to reach out to share your thoughts and feedback 
+about Copy-on-Write.&lt;/p&gt;</content><category term="posts"></category><category term="pandas"></category><category term="copy-on-write"></category><category term="performance"></category></entry><entry><title>pandas Internals Explained</title><link href="https://phofl.github.io/pandas-internals.html" rel="alternate"></link><published>2023-07-21T00:00:00+02:00</published><updated>2023-07-21T00:00:00+02:00</updated><author><name>Patrick Hoefler</name></author><id>tag:phofl.github.io,2023-07-21:/pandas-internals.html</id><summary type="html">&lt;p&gt;&lt;em&gt;Explaining the pandas data model and its advantages&lt;/em&gt;&lt;/p&gt;
+&lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
+&lt;p&gt;pandas enables you to choose between different types of arrays to represent the data of your
+DataFrame. Historically, most DataFrames are backed by NumPy arrays. &lt;a href="https://medium.com/gitconnected/welcoming-pandas-2-0-194094e4275b"&gt;pandas 2.0 introduced the 
+option to use PyArrow arrays&lt;/a&gt; as a storage format. 
+There exists …&lt;/p&gt;</summary><content type="html">&lt;p&gt;&lt;em&gt;Explaining the pandas data model and its advantages&lt;/em&gt;&lt;/p&gt;
+&lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
+&lt;p&gt;pandas enables you to choose between different types of arrays to represent the data of your
+DataFrame. Historically, most DataFrames are backed by NumPy arrays. &lt;a href="https://medium.com/gitconnected/welcoming-pandas-2-0-194094e4275b"&gt;pandas 2.0 introduced the 
+option to use PyArrow arrays&lt;/a&gt; as a storage format. 
+There exists an intermediate layer between these arrays and your DataFrame, &lt;code&gt;Blocks&lt;/code&gt; and the
+&lt;code&gt;BlockManager&lt;/code&gt;. We will take a look at how this layer orchestrates the different arrays, basically
+what's behind &lt;code&gt;pd.DataFrame()&lt;/code&gt;. We will try to answer all questions you might have about pandas 
+internals.&lt;/p&gt;
+&lt;p&gt;The post will introduce some terminology that is necessary to understand how Copy-on-Write works,
+which is something I'll write about next.&lt;/p&gt;
+&lt;h2 id="pandas-data-structure"&gt;pandas data structure&lt;/h2&gt;
+&lt;p&gt;A &lt;code&gt;DataFrame&lt;/code&gt; is usually backed by some sort of array, e.g. a NumPy array or 
+pandas ExtensionArray. These arrays store the data of the DataFrame. pandas adds an intermediate 
+layer, called &lt;code&gt;Block&lt;/code&gt; and &lt;code&gt;BlockManager&lt;/code&gt; that orchestrate these arrays to make operations as 
+efficient as possible. This is one of the reasons why methods that operate on multiple columns can 
+be very fast in pandas. Let's look a bit more into the details of these layers.&lt;/p&gt;
+&lt;h3 id="arrays"&gt;Arrays&lt;/h3&gt;
+&lt;p&gt;The actual data of a DataFrame can be stored in a set of NumPy arrays or pandas ExtensionArrays. 
+This layer generally dispatches to the underlying implementation, e.g. it will utilize the NumPy 
+API if the data is stored in NumPy arrays. pandas simply stores the data in them and calls its 
+methods without enriching the interace. You can read up on pandas 
+ExtensionArrays &lt;a href="https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.api.extensions.ExtensionArray.html"&gt;here&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;NumPy arrays are normally 2-dimensional, which offers a bunch of performance advantages that we
+will take a look at later. pandas ExtensionArrays are mostly one-dimensional data structures as
+of right now. This makes things a bit more predictable but has some drawbacks when looking at
+performance in a specific set of operations. ExtensionArrays enable DataFrames that are backed by
+PyArrow arrays among other dtypes.&lt;/p&gt;
+&lt;h3 id="blocks"&gt;Blocks&lt;/h3&gt;
+&lt;p&gt;A DataFrame normally consists of a set of columns that are represented by at least one array, 
+normally you'll have a collection of arrays since one array can only store one specific dtype.
+These arrays store your data but don't have any information about which columns they are
+representing. Every array from your DataFrame is wrapped by one corresponding &lt;code&gt;Block&lt;/code&gt;. Blocks
+add some additional information to these arrays like the column locations that are represented
+by this Block. Blocks serve as a layer around the actual arrays that can be enriched with utility methods
+that are necessary for pandas operations.&lt;/p&gt;
+&lt;p&gt;When an actual operation is executed on a DataFrame, the Block ensures that the method dispatches
+to the underlying array, e.g. if you call &lt;code&gt;astype&lt;/code&gt;, it will make sure that this operation is
+called on the array.&lt;/p&gt;
+&lt;p&gt;This layer does not have any information about the other columns in the DataFrame. It is a stand-alone
+object.&lt;/p&gt;
+&lt;h3 id="blockmanager"&gt;BlockManager&lt;/h3&gt;
+&lt;p&gt;As the name suggests, the &lt;code&gt;BlockManager&lt;/code&gt; orchestrates all Blocks that are connected to one 
+DataFrame. It holds the Blocks itself and information about your DataFrame's axes, e.g. column names
+and Index labels. Most importantly, it dispatches most operations to the actual Blocks.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df.replace(...)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;The BlockManager ensures that &lt;code&gt;replace&lt;/code&gt; is executed on every Block.&lt;/p&gt;
+&lt;h2 id="what-is-a-consolidated-dataframe"&gt;What is a consolidated DataFrame&lt;/h2&gt;
+&lt;p&gt;We are assuming that the DataFrames is backed by NumPy dtypes, e.g. that it's data can be stored
+as two-dimensional arrays.&lt;/p&gt;
+&lt;p&gt;When a DataFrame is constructed, pandas mostly ensures that there is only one Block per dtype.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df = pd.DataFrame(
+    {
+        &amp;quot;a&amp;quot;: [1, 2, 3],
+        &amp;quot;b&amp;quot;: [1.5, 2.5, 3.5],
+        &amp;quot;c&amp;quot;: [10, 11, 12],
+        &amp;quot;d&amp;quot;: [10.5, 11.5, 12.5],
+    }
+)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;This DataFrame has 4 columns which are represented by 2 arrays, one of the arrays stores the integer
+dtypes while the other stores the float dtypes. This is a &lt;em&gt;consolidated&lt;/em&gt; DataFrame.&lt;/p&gt;
+&lt;p&gt;Now let's add a new column to this DataFrame:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df[&amp;quot;new&amp;quot;] = 100
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;This will have the same dtype as our existing column &lt;code&gt;"a"&lt;/code&gt; and &lt;code&gt;"c"&lt;/code&gt;. There are now two potential
+ways of moving forward:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;Add the new column to the existing array that holds the integer columns&lt;/li&gt;
+&lt;li&gt;Create a new array that only stores the new column.&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;The first option would require us to add a new column to the existing array. This would require copying
+the data since NumPy does not support this operation without a copy. This is obviously a pretty steep
+cost for simply adding one column.&lt;/p&gt;
+&lt;p&gt;The second option adds a third array to our collection of arrays. Apart from this, no additional 
+operation is necessary. This is very cheap. We now have 2 Blocks that store integer data. This is
+a DataFrame that is not consolidated.&lt;/p&gt;
+&lt;p&gt;These differences don't matter much as long as you are only operating on a per-column basis. It
+will impact the performance of your operations as soon as they operate on multiple columns.
+For example, performing any &lt;code&gt;axis=1&lt;/code&gt; operation will transpose the data of your DataFrame. 
+Transposing is generally zero-copy if performed on a DataFrame that is backed by a single NumPy
+array. This is no longer true if every column is backed by a different array and hence, will incur
+performance penalties.&lt;/p&gt;
+&lt;p&gt;It will also require a copy when you want to get all integer columns from your DataFrame as a 
+NumPy array.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df[[&amp;quot;a&amp;quot;, &amp;quot;c&amp;quot;, &amp;quot;new&amp;quot;]].to_numpy()
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;This will create a copy since the results have to be stored in a single NumPy array. It returns
+a view on a consolidated DataFrame, which makes this very cheap.&lt;/p&gt;
+&lt;p&gt;Previous versions often caused an internal consolidation for certain methods, which in turn caused 
+unpredictable performance behavior. Methods like &lt;code&gt;reset_index&lt;/code&gt; were triggering a completely
+unnecessary consolidation. These were mostly removed over the last couple of releases.&lt;/p&gt;
+&lt;p&gt;Summarizing, a consolidated DataFrame is generally better than an unconsolidated one, but the 
+difference depends heavily on the type of operation you want to execute.&lt;/p&gt;
+&lt;h1 id="conclusion"&gt;Conclusion&lt;/h1&gt;
+&lt;p&gt;We took a brief look behind the scenes of a pandas DataFrame. We learned what &lt;code&gt;Blocks&lt;/code&gt; and
+&lt;code&gt;BlockManagers&lt;/code&gt; are and how they orchestrate your DataFrame. These terms will prove valuable
+when we take a look behind the scenes of 
+&lt;a href="https://medium.com/towards-data-science/a-solution-for-inconsistencies-in-indexing-operations-in-pandas-b76e10719744"&gt;Copy-on-Write&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Thank you for reading. Feel free to reach out to share your thoughts and feedback.&lt;/p&gt;</content><category term="posts"></category><category term="pandas"></category></entry><entry><title>Dask performance benchmarking put to the test: Fixing a pandas bottleneck</title><link href="https://phofl.github.io/dask-performance-benchmarking-put-to-the-test-fixing-a-pandas-bottleneck.html" rel="alternate"></link><published>2023-06-28T00:00:00+02:00</published><updated>2023-06-28T00:00:00+02:00</updated><author><name>Patrick Hoefler</name></author><id>tag:phofl.github.io,2023-06-28:/dask-performance-benchmarking-put-to-the-test-fixing-a-pandas-bottleneck.html</id><summary type="html">&lt;p&gt;&lt;strong&gt;Getting notified of a significant performance regression the day before release sucks, but quickly identifying and resolving it feels great!&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;We were getting set up at our booth at JupyterCon 2023 when we received a notification:
+An engineer on our team had spotted a significant performance regression in Dask.
+With …&lt;/p&gt;</summary><content type="html">&lt;p&gt;&lt;strong&gt;Getting notified of a significant performance regression the day before release sucks, but quickly identifying and resolving it feels great!&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;We were getting set up at our booth at JupyterCon 2023 when we received a notification:
+An engineer on our team had spotted a significant performance regression in Dask.
+With an impact of 40% increased runtime, it blocked the release planned for the next day!&lt;/p&gt;
+&lt;p&gt;&lt;img alt="" src="../images/dask_upstream_performance_tests/performance-regression.png"&gt;&lt;/p&gt;
+&lt;p&gt;Luckily, the other attendees still focused on coffee and breakfast, so we commandeered an abandoned table next to our booth and got to work.&lt;/p&gt;
+&lt;h2 id="performance-testing-at-coiled"&gt;Performance testing at Coiled&lt;/h2&gt;
+&lt;p&gt;The performance problem &lt;a href="https://github.com/coiled/benchmarks/issues/840"&gt;had been flagged&lt;/a&gt; by the automated performance testing for Dask that we developed at &lt;a href="https://www.coiled.io/?utm_source=phofl&amp;amp;utm_medium=dask-benchmark-pandas-bottleneck"&gt;Coiled&lt;/a&gt;.
+If you have not read Guido Imperiale's &lt;a href="https://blog.coiled.io/blog/performance-testing.html?utm_source=phofl&amp;amp;utm_medium=dask-benchmark-pandas-bottleneck"&gt;blog post&lt;/a&gt; on our approach to performance testing, here is a summary:
+With &lt;a href="https://github.com/coiled/benchmarks"&gt;&lt;code&gt;coiled/benchmarks&lt;/code&gt;&lt;/a&gt;, we created a benchmark suite that contains a variety of common workloads and operations with Dask, including standardized ones like the &lt;a href="https://github.com/h2oai/db-benchmark"&gt;&lt;code&gt;h2oai/db-benchmark&lt;/code&gt;&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;It also contains tooling that allows us to do two things:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Automatically &lt;a href="https://blog.coiled.io/blog/performance-testing.html#nightly-tests?utm_source=phofl&amp;amp;utm_medium=dask-benchmark-pandas-bottleneck"&gt;detect performance regressions&lt;/a&gt; in Dask and raise them as issues.&lt;/li&gt;
+&lt;li&gt;&lt;a href="https://blog.coiled.io/blog/performance-testing.html#a-b-tests?utm_source=phofl&amp;amp;utm_medium=dask-benchmark-pandas-bottleneck"&gt;Run A/B tests&lt;/a&gt; to assess the performance impact of different versions of Dask, upstream packages, or cluster configurations.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;While the former started this journey, the latter will also come in handy soon.  &lt;/p&gt;
+&lt;h2 id="identifying-the-problem"&gt;Identifying the problem&lt;/h2&gt;
+&lt;p&gt;Our automated regression testing had alerted us that &lt;a href="https://github.com/coiled/benchmarks/blob/895a13db09eb3172155e7b1260a5698f2284f5b7/tests/benchmarks/test_h2o.py#L140-L151"&gt;&lt;code&gt;test_h2o.py::test_q8&lt;/code&gt;&lt;/a&gt; had experienced &lt;a href="https://github.com/dask/community/issues/322#issuecomment-1542560550"&gt;a significant increase&lt;/a&gt; in runtime across all data sizes and file formats. 
+From the &lt;a href="https://benchmarks.coiled.io?utm_source=phofl&amp;amp;utm_medium=dask-benchmark-pandas-bottleneck"&gt;historical report&lt;/a&gt; of our benchmarking suite, we could see that &lt;code&gt;dask/dask&lt;/code&gt; and &lt;code&gt;dask/distributed&lt;/code&gt; were unlikely to be the culprit: 
+Nothing had changed on &lt;code&gt;dask/dask&lt;/code&gt; when the performance started to degrade, and there was only one unrelated change on &lt;code&gt;dask/distributed&lt;/code&gt;. 
+That left us with the Coiled platform and upstream packages as possible candidates. &lt;/p&gt;
+&lt;p&gt;After digging deeper into the cluster data, we noticed that &lt;code&gt;pandas&lt;/code&gt; had been upgraded from &lt;code&gt;1.5.3&lt;/code&gt; to &lt;code&gt;2.0.1&lt;/code&gt;. 
+A major upgrade to &lt;code&gt;pandas&lt;/code&gt; at the same time a dataframe-based workload shows degrading performance? That's suspicious! &lt;/p&gt;
+&lt;p&gt;To confirm this suspicion, we ran an A/B test based on the current Dask release (&lt;code&gt;2023.4.1&lt;/code&gt; at the time), testing the impact of the pandas upgrade. 
+&lt;a href="https://github.com/coiled/benchmarks/actions/runs/4946428740"&gt;The results&lt;/a&gt; were clear: The runtime increased significantly with &lt;code&gt;pandas=2.0.1&lt;/code&gt; (sample).&lt;/p&gt;
+&lt;p&gt;&lt;img alt="" src="../images/dask_upstream_performance_tests/ab-test.png"&gt;&lt;/p&gt;
+&lt;p&gt;Having shown that &lt;code&gt;pandas&lt;/code&gt; caused for the performance degradation and that we could reproduce it with the current Dask release, our release process for &lt;code&gt;2023.5.0&lt;/code&gt; &lt;a href="https://github.com/dask/community/issues/322#issuecomment-1543878628"&gt;was cleared&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;To further analyze the problem, we also derived a &lt;a href="https://matthewrocklin.com/minimal-bug-reports.html#minimal-complete-verifiable-examples"&gt;minimal local reproducer&lt;/a&gt; from the original workload:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;from dask.distributed import Client
+
+client = Client()
+uri = &amp;quot;s3://coiled-datasets/h2o-benchmark/N_1e7_K_1e2_parquet/*.parquet&amp;quot;
+ddf = dd.read_parquet(uri, engine=&amp;quot;pyarrow&amp;quot;, storage_options={&amp;quot;anon&amp;quot;: True}).persist()
+wait(ddf)
+
+ddf = ddf[[&amp;quot;id6&amp;quot;, &amp;quot;v1&amp;quot;, &amp;quot;v2&amp;quot;, &amp;quot;v3&amp;quot;]]
+(
+    ddf[~ddf[&amp;quot;v3&amp;quot;].isna()][[&amp;quot;id6&amp;quot;, &amp;quot;v3&amp;quot;]]
+    .groupby(&amp;quot;id6&amp;quot;, dropna=False, observed=True)
+    .apply(
+        lambda x: x.nlargest(2, columns=&amp;quot;v3&amp;quot;),
+        meta={&amp;quot;id6&amp;quot;: &amp;quot;Int64&amp;quot;, &amp;quot;v3&amp;quot;: &amp;quot;float64&amp;quot;},
+    )[[&amp;quot;v3&amp;quot;]]
+).compute()
+&lt;/code&gt;&lt;/pre&gt;
+&lt;h2 id="investigating-the-pandas-performance-degradation"&gt;Investigating the pandas performance degradation&lt;/h2&gt;
+&lt;p&gt;The only user-visible thing that changed between pandas 1.5.3 and pandas 2.0.1 was the default value
+of &lt;code&gt;group_keys&lt;/code&gt; in &lt;code&gt;GroupBy&lt;/code&gt;. Switching to &lt;code&gt;group_keys=False&lt;/code&gt; with version 2.0.1
+got us back to the initial runtime.
+Now that we knew that pandas was to blame for the performance degradation, we had to create a 
+reproducer in plain pandas to help fix the issue.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df = pd.DataFrame(
+    {
+        &amp;quot;foo&amp;quot;: np.random.randint(1, 50_000, (100_000, )), 
+        &amp;quot;bar&amp;quot;: np.random.randint(1, 100_000, (100_000, )),
+    },
+)
+
+df.groupby(
+    &amp;quot;foo&amp;quot;, group_keys=False
+).apply(lambda x: x.nlargest(2, columns=&amp;quot;bar&amp;quot;))
+&lt;/code&gt;&lt;/pre&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;group_keys=False&lt;/code&gt;: approx. 11 seconds&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;group_keys=True&lt;/code&gt;: approx. 15 seconds&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Experimenting a bit showed us that the bottleneck got even worse while increasing the number of 
+groups during the &lt;code&gt;groupby&lt;/code&gt; calculation. We settled on this version which is 30% slower with 
+&lt;code&gt;group_keys=True&lt;/code&gt;, enough to be able to troubleshoot the problem. There was no obvious reason
+why the changed value should bring a significant slowdown.&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;%prun&lt;/code&gt; showed us that the time was almost exclusively spent in a post-processing step that
+combines all groups via &lt;code&gt;concat&lt;/code&gt;.&lt;/p&gt;
+&lt;h2 id="addressing-the-performance-degradation"&gt;Addressing the performance degradation&lt;/h2&gt;
+&lt;p&gt;Let's look at how both cases differ. The new version passes the grouping levels to &lt;code&gt;concat&lt;/code&gt;, which
+are used to construct the resulting Index levels. This shouldn't be that slow though. Investigations
+showed that this runs through a code-path that is very inefficient!&lt;/p&gt;
+&lt;p&gt;Looking closer at the results of &lt;code&gt;%prun&lt;/code&gt; pointed us to one specific loop that took up most of
+the runtime. This loop calculates the &lt;code&gt;codes&lt;/code&gt; for the resulting index based on the provided 
+levels. It's slow, really slow! Every single element provided as &lt;code&gt;keys&lt;/code&gt;, which 
+represent the number of groups, is checked against the whole level, which explains our previous 
+observation that the runtime got worse with an increasing number of groups. You can check out the 
+&lt;a href="https://pandas.pydata.org/pandas-docs/stable/user_guide/merging.html#more-concatenating-with-group-keys"&gt;pandas user guide&lt;/a&gt;
+if you are interested in situations where this is useful. Fortunately, we have a convenient
+advantage in case of &lt;code&gt;groupby&lt;/code&gt;. We know beforehand that every key equals the specific level. 
+We added a fast-path that exploits this knowledge getting the runtime of this step more or less to
+zero.&lt;/p&gt;
+&lt;p&gt;This change resulted in a &lt;a href="https://github.com/pandas-dev/pandas/pull/53195"&gt;small PR&lt;/a&gt; that cut 
+the runtime of &lt;code&gt;group_keys=True&lt;/code&gt; to approximately 11 seconds as well.&lt;/p&gt;
+&lt;h2 id="conclusion"&gt;Conclusion&lt;/h2&gt;
+&lt;p&gt;Now that we made our pandas reproducer run 30% faster, we have to check whether we accomplished our
+initial objective. Re-running the local Dask reproducer should give us an idea about the
+impact on Dask. We got the performance down to 22 seconds as well! Promising news that saved
+our plans for the evening!&lt;/p&gt;
+&lt;p&gt;Unfortunately, we had to wait until pandas 2.0.2 was released to run a proper benchmark.&lt;/p&gt;
+&lt;p&gt;&lt;img alt="" src="../images/dask_upstream_performance_tests/benchmark_after.jpg"&gt;&lt;/p&gt;
+&lt;p&gt;This looks great! Our small pandas change translated to our Dask query and got performance back
+to the previous level!&lt;/p&gt;</content><category term="posts"></category><category term="dask"></category><category term="performance"></category><category term="coiled"></category><category term="pandas"></category></entry><entry><title>Benchmarking pandas against Polars from a pandas PoV</title><link href="https://phofl.github.io/pandas-benchmarks.html" rel="alternate"></link><published>2023-06-15T00:00:00+02:00</published><updated>2023-06-15T00:00:00+02:00</updated><author><name>Patrick Hoefler</name></author><id>tag:phofl.github.io,2023-06-15:/pandas-benchmarks.html</id><summary type="html">&lt;p&gt;&lt;em&gt;Or: How writing efficient pandas code matters&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img alt="" src="../images/pandas_benchmark/title.png"&gt;&lt;/p&gt;
+&lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
+&lt;p&gt;I've regularly seen benchmarks that show how much faster Polars is compared to pandas. 
+The fact that Polars is faster than pandas is not too surprising since it is multithreaded while 
+pandas is mostly single-core. The big difference surprises me though. That's …&lt;/p&gt;</summary><content type="html">&lt;p&gt;&lt;em&gt;Or: How writing efficient pandas code matters&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img alt="" src="../images/pandas_benchmark/title.png"&gt;&lt;/p&gt;
+&lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
+&lt;p&gt;I've regularly seen benchmarks that show how much faster Polars is compared to pandas. 
+The fact that Polars is faster than pandas is not too surprising since it is multithreaded while 
+pandas is mostly single-core. The big difference surprises me though. That's why I decided to take 
+a look at the pandas queries that were used for the benchmarks. &lt;/p&gt;
+&lt;p&gt;I was curious to find out whether there was room for improvement. This post will detail a couple 
+of easy steps that I took to speed up pandas code. The pandas performance improvements are quite 
+impressive!&lt;/p&gt;
+&lt;p&gt;We will look at the &lt;code&gt;tpch&lt;/code&gt; benchmarks from
+the &lt;a href="https://github.com/pola-rs/tpch"&gt;Polars repository&lt;/a&gt; with &lt;code&gt;scale_1&lt;/code&gt; including I/O time. &lt;/p&gt;
+&lt;p&gt;Fair warning: I had to try this a couple of times since the API changed. You can switch to version 
+0.17.15, if you encounter problems, that's what I used. Additionally, I am using the current 
+development version of pandas because some optimizations for Copy-on-Write and the 
+Pyarrow &lt;code&gt;dtype_backend&lt;/code&gt; were added after 2.0 was released. The development version was also used 
+to create the baseline plots, so all performance gains shown in here can be attributed to the 
+refactoring steps. You can use this version starting from August at the latest!&lt;/p&gt;
+&lt;p&gt;I came away with one main takeaway:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Writing efficient pandas code &lt;strong&gt;matters a lot&lt;/strong&gt;.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;I have a MacBook Air with M2 processors and 24GB of RAM. The benchmarks are only run once in 
+default mode. I repeated the calculations 15 times and used the mean as result.&lt;/p&gt;
+&lt;h2 id="baseline"&gt;Baseline&lt;/h2&gt;
+&lt;p&gt;I ran the benchmarks "as is" as a first step to get the status-quo.&lt;/p&gt;
+&lt;p&gt;&lt;img alt="" src="../images/pandas_benchmark/baseline.png"&gt;&lt;/p&gt;
+&lt;p&gt;It's relatively easy to see that Polars is between 4–10 times faster than pandas. After getting 
+these results I decided to look at the queries that were used for pandas. A couple of relatively 
+straightforward optimizations will speed up our pandas code a lot. Additionally, we will get other
+benefits out of it as well, like a significantly reduced memory footprint.&lt;/p&gt;
+&lt;p&gt;Side note: Number 8 is broken, so no result there.&lt;/p&gt;
+&lt;h2 id="initial-refactoring"&gt;Initial refactoring&lt;/h2&gt;
+&lt;p&gt;One thing that stood out is that the whole parquet files were read even though most queries only 
+needed a small subset. Some queries also did some operations on the whole dataset and dropped the 
+columns later on. A filtering operation is slowed down quite a bit when performed on the full 
+DataFrame compared to only a fraction of the columns, e.g.:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;new_df = df[mask]
+new_df = df[[&amp;quot;a&amp;quot;, &amp;quot;b&amp;quot;]]
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;This is significantly slower than restricting the DataFrame to the relevant subset beforehand:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df = df[[&amp;quot;a&amp;quot;, &amp;quot;b&amp;quot;]]
+new_df = df[mask]
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;There is no need to read these columns at all, if they are not used somewhere within your code. 
+Pushing the column selection into &lt;code&gt;read_parquet&lt;/code&gt; is easy, since this is offered by PyArrow through 
+the &lt;code&gt;columns&lt;/code&gt; keyword.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df = pd.read_parquet(...)
+df = df[df.a &amp;gt; 100]
+df[[&amp;quot;a&amp;quot;, &amp;quot;b&amp;quot;]]
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;This is rewritten into:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df = pd.read_parquet(..., columns=[&amp;quot;a&amp;quot;, &amp;quot;b&amp;quot;])
+df = df[df.a &amp;gt; 100]
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;I've also turned Copy-on-Write on. It's now in a state that it shouldn't have many performance 
+problems while it will most likely give a speedup. That said, the difference here is not too big, 
+since the benchmarks are &lt;code&gt;GroupBy&lt;/code&gt; and &lt;code&gt;merge&lt;/code&gt; heavy, which aren't really influenced by CoW. 
+This was a quick refactoring effort that took me around 30 minutes for all queries. Most queries 
+restricted the DataFrame later on anyway, so it was mostly a copy-paste exercise.&lt;/p&gt;
+&lt;p&gt;Let's look at the results:&lt;/p&gt;
+&lt;p&gt;&lt;img alt="" src="../images/pandas_benchmark/first_optimization.png"&gt;&lt;/p&gt;
+&lt;p&gt;The pandas queries got a lot faster through a couple of small modifications, e.g. we can see 
+performance improvements by a factor of 2 and more. Since this avoids loading unnecessary columns 
+completely, we reduced the memory footprint of our program significantly.&lt;/p&gt;
+&lt;h2 id="further-optimizations-leveraging-arrow"&gt;Further optimizations - leveraging Arrow&lt;/h2&gt;
+&lt;p&gt;A quick profiling showed that the filter operations were still a bottleneck for a couple of queries. 
+Fortunately, there is an easy fix. &lt;code&gt;read_parquet&lt;/code&gt; passes potential keywords through to PyArrow and 
+Arrow offers the option to filter the table while reading the parquet file. Moving these filters up 
+gives a nice additional improvement.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df = pd.read_parquet(..., columns=[&amp;quot;a&amp;quot;, &amp;quot;b&amp;quot;])
+df = df[df.a &amp;gt; 100]
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;We can easily pass the filter condition to Arrow to avoid materializing unnecessary rows:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;import pyarrow.compute as pc
+
+
+df = pd.read_parquet(..., columns=[&amp;quot;a&amp;quot;, &amp;quot;b&amp;quot;], filters=pc.field(&amp;quot;a&amp;quot;) &amp;gt; 100)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Arrow supports an Expression style for these filter conditions. You can use more or less all 
+filtering operations that would be available in pandas as well. Let's look at what this means 
+performance-wise.&lt;/p&gt;
+&lt;p&gt;&lt;img alt="" src="../images/pandas_benchmark/second_optimization.png"&gt;&lt;/p&gt;
+&lt;p&gt;We got a nice performance improvement for most queries. Obviously, this depends on what filter was 
+used in the query itself. Similar to the first optimization, this will reduce the memory footprint 
+significantly, since rows violating the filter won't be loaded into memory at all.&lt;/p&gt;
+&lt;p&gt;There is one relatively straightforward optimization left without rewriting the queries completely.&lt;/p&gt;
+&lt;h2 id="improving-merge-performance"&gt;Improving &lt;code&gt;merge&lt;/code&gt; performance&lt;/h2&gt;
+&lt;p&gt;The following trick requires knowledge about your data and can’t be applied in a general way. This 
+is more of a general idea that isn’t really compliant with tpch rules, but nice to see nevertheless.&lt;/p&gt;
+&lt;p&gt;This technique is a bit tricky. I stumbled upon this a couple of years ago when I had a performance
+issue at my previous job. In these scenarios, &lt;code&gt;merge&lt;/code&gt; is basically used as a filter that restricts
+one of both DataFrames quite heavily. This is relatively slow when using merge, because pandas
+isn't aware that you want to use the &lt;code&gt;merge&lt;/code&gt; operation as a filter. We can apply a filter
+with isin before performing the actual merge to speed up our queries.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;import pandas as pd
+
+left = pd.DataFrame({&amp;quot;left_a&amp;quot;: [1, 2, 3], &amp;quot;left_b&amp;quot;: [4, 5, 6]})
+right = pd.DataFrame({&amp;quot;right_a&amp;quot;: [1], &amp;quot;right_c&amp;quot;: [4]})
+
+left = left[left[&amp;quot;left_a&amp;quot;].isin(right[&amp;quot;right_a&amp;quot;])]  # restrict the df beforehand
+result = left.merge(right, left_on=&amp;quot;left_a&amp;quot;, right_on=&amp;quot;right_a&amp;quot;)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;This wasn't necessary for all queries, since only a couple of them were using &lt;code&gt;merge&lt;/code&gt; in this way. 
+The queries where we applied the technique got another nice performance boost!&lt;/p&gt;
+&lt;p&gt;&lt;img alt="" src="../images/pandas_benchmark/final_optimization.png"&gt;&lt;/p&gt;
+&lt;p&gt;We achieved our main objective here. Most of these queries run a lot faster now than they did 
+before, and use less memory as well. The first query did not get that big of a speedup. It 
+calculates a lot of results on a groupby aggregation, which is done sequentially. We are looking
+into it right now how we can improve performance here.&lt;/p&gt;
+&lt;h2 id="summary"&gt;Summary&lt;/h2&gt;
+&lt;p&gt;All in all these optimizations took me around 1.5-2 hours. Your mileage might vary, but I don't 
+think that it will take you much longer, since most of the optimizations are very straightforward. 
+A relatively small time investment where most
+of the time was spent on reorganizing the initial queries. You can find the PR that modifies the 
+benchmarks &lt;a href="https://github.com/pola-rs/tpch/pull/56"&gt;here&lt;/a&gt;. Polars has a query optimization layer, so it does some of
+these things automatically, but this is not a guarantee that you'll end up with efficient code. &lt;/p&gt;
+&lt;p&gt;We saw that writing more efficient pandas code isn't that hard and can give you a huge performance 
+improvement. Looking at these queries helped us as well, since we were able to identify a couple of 
+performance bottleneck where we are working on a solution. We were even able to make one of the 
+queries run faster than the Polars version!&lt;/p&gt;
+&lt;p&gt;These performance improvements mostly translate to the &lt;code&gt;scale_10&lt;/code&gt; version of the benchmarks.&lt;/p&gt;
+&lt;p&gt;Thanks for reading. Please reach out with any comments or feedback. I wrote a more general post about
+&lt;a href="https://towardsdatascience.com/utilizing-pyarrow-to-improve-pandas-and-dask-workflows-2891d3d96d2b"&gt;improving performance in pandas with PyArrow&lt;/a&gt; 
+as well.&lt;/p&gt;</content><category term="posts"></category><category term="pandas"></category></entry><entry><title>Utilizing PyArrow to improve pandas and Dask workflows</title><link href="https://phofl.github.io/pyarrow-pandas-dask.html" rel="alternate"></link><published>2023-06-05T00:00:00+02:00</published><updated>2023-06-05T00:00:00+02:00</updated><author><name>Patrick Hoefler</name></author><id>tag:phofl.github.io,2023-06-05:/pyarrow-pandas-dask.html</id><summary type="html">&lt;p&gt;&lt;em&gt;Get the most out of PyArrow support in pandas and Dask right now&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img alt="" src="../images/arrow_backend/title.svg"&gt;&lt;/p&gt;
+&lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
+&lt;p&gt;This post investigates where we can use PyArrow to improve our pandas and Dask workflows right now.
+General support for PyArrow dtypes was added with pandas 2.0 to &lt;a href="https://pandas.pydata.org"&gt;pandas&lt;/a&gt; 
+and &lt;a href="https://www.dask.org?utm_source=phofl&amp;amp;utm_medium=pyarrow-in-pandas-and-dask"&gt;Dask&lt;/a&gt;. This solves a
+bunch …&lt;/p&gt;</summary><content type="html">&lt;p&gt;&lt;em&gt;Get the most out of PyArrow support in pandas and Dask right now&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img alt="" src="../images/arrow_backend/title.svg"&gt;&lt;/p&gt;
+&lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
+&lt;p&gt;This post investigates where we can use PyArrow to improve our pandas and Dask workflows right now.
+General support for PyArrow dtypes was added with pandas 2.0 to &lt;a href="https://pandas.pydata.org"&gt;pandas&lt;/a&gt; 
+and &lt;a href="https://www.dask.org?utm_source=phofl&amp;amp;utm_medium=pyarrow-in-pandas-and-dask"&gt;Dask&lt;/a&gt;. This solves a
+bunch of long-standing pains for users of both libraries. pandas users often complain to me that
+pandas does not support missing values in arbitrary dtypes or that non-standard dtypes are not very
+well supported. A particularly annoying problem for
+Dask users is running out of memory with large datasets. PyArrow backed string columns 
+consume up to 70% less memory compared to NumPy object columns and thus have the potential to 
+mitigate this problem as well as providing a huge performance improvement.&lt;/p&gt;
+&lt;p&gt;Support for PyArrow dtypes in pandas, and by extension Dask, is still relatively new. I would 
+recommend caution when opting into the PyArrow &lt;code&gt;dtype_backend&lt;/code&gt; until at least pandas 2.1 is 
+released. Not every part of both APIs is optimized yet. You should be able to get a big improvement 
+in certain workflows though. This post will go over a couple of examples where I'd recommend switching to 
+PyArrow right away, because it already provides huge benefits. &lt;/p&gt;
+&lt;p&gt;Dask itself can benefit in various ways from PyArrow dtypes. We will investigate how PyArrow backed
+strings can easily mitigate the pain point of running out of memory on Dask clusters and how we 
+can improve performance through utilizing PyArrow.&lt;/p&gt;
+&lt;p&gt;I am part of the pandas core team and was heavily involved in implementing and improving PyArrow 
+support in pandas. I've recently joined 
+&lt;a href="https://www.coiled.io?utm_source=phofl&amp;amp;utm_medium=pyarrow-in-pandas-and-dask"&gt;Coiled&lt;/a&gt; where I 
+am working on Dask. One of my tasks is improving the PyArrow integration.&lt;/p&gt;
+&lt;h2 id="general-overview-of-pyarrow-support"&gt;General overview of PyArrow support&lt;/h2&gt;
+&lt;p&gt;PyArrow dtypes were initially introduced in pandas 1.5. The implementation was experimental and I
+wouldn't recommend using it on pandas 1.5.x. Support for them is still relatively new. 
+pandas 2.0 provides a huge improvement, including making opting into PyArrow backed DataFrames easy.
+We are still working on supporting them properly everywhere, and thus they should be used with caution
+until at least pandas 2.1 is released. Both projects work continuously to improve support throughout Dask and 
+pandas.&lt;/p&gt;
+&lt;p&gt;We encourage users to try them out! This will help us to get a better idea of what is still lacking
+support or is not fast enough. Giving feedback helps us improve support and will drastically reduce the
+time that is necessary to create a smooth user experience.&lt;/p&gt;
+&lt;h2 id="dataset"&gt;Dataset&lt;/h2&gt;
+&lt;p&gt;We will use the taxi dataset from New York City that contains all Uber and Lyft rides. It has
+some interesting attributes like price, tips, driver pay and many more. The dataset can be found
+&lt;a href="https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page"&gt;here&lt;/a&gt; 
+(see &lt;a href="https://www.nyc.gov/home/terms-of-use.page"&gt;terms of service&lt;/a&gt;) and is stored in parquet
+files. When analyzing Dask queries, we will use a publicly available S3 bucket to simplify our
+queries: &lt;code&gt;s3://coiled-datasets/uber-lyft-tlc/&lt;/code&gt;. We will use the dataset from December 2022 
+for our pandas queries, since this is the maximum that fits comfortably into memory on my 
+machine (24GB of RAM). We have to avoid stressing our RAM usage, since this might introduce side 
+effects when analyzing performance.&lt;/p&gt;
+&lt;p&gt;We will also investigate the performance of &lt;code&gt;read_csv&lt;/code&gt;. We will use the &lt;em&gt;Crimes in Chicago&lt;/em&gt; dataset
+that can be found &lt;a href="https://www.kaggle.com/datasets/utkarshx27/crimes-2001-to-present"&gt;here&lt;/a&gt;.&lt;/p&gt;
+&lt;h2 id="dask-cluster"&gt;Dask cluster&lt;/h2&gt;
+&lt;p&gt;There are various different options to set up a Dask cluster, see the 
+&lt;a href="https://docs.dask.org/en/stable/deploying.html?utm_source=phofl&amp;amp;utm_medium=pyarrow-in-pandas-and-dask"&gt;Dask documentation&lt;/a&gt; for
+a non-exhaustive list of deployment options. I will use
+&lt;a href="https://docs.coiled.io/user_guide/index.html?utm_source=phofl&amp;amp;utm_medium=pyarrow-in-pandas-and-dask"&gt;Coiled&lt;/a&gt; to create a cluster on AWS with
+30 machines through:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;import coiled
+
+cluster = coiled.Cluster(
+    n_workers=30,
+    name=&amp;quot;dask-performance-comparisons&amp;quot;,
+    region=&amp;quot;us-east-2&amp;quot;,  # this is the region of our dataset
+    worker_vm_type=&amp;quot;m6i.large&amp;quot;,
+)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Coiled is connected to my AWS account. It creates the cluster within my account and manages all
+resources for me. 30 machines are enough to operate on our dataset comfortably. We will investigate
+how we can reduce the required number of workers to 15 through some small 
+modifications.&lt;/p&gt;
+&lt;h2 id="pandas-stringdtype-backed-by-pyarrow"&gt;pandas StringDtype backed by PyArrow&lt;/h2&gt;
+&lt;p&gt;We begin with a feature that was originally introduced over 3 years ago in pandas 1.0. Setting the
+dtype in pandas or Dask to &lt;code&gt;string&lt;/code&gt; returns an object with &lt;code&gt;StringDtype&lt;/code&gt;. This feature is relatively mature and should
+provide a smooth user experience.&lt;/p&gt;
+&lt;p&gt;Historically, pandas represented string data through NumPy arrays with dtype &lt;code&gt;object&lt;/code&gt;. NumPy object data is stored as an 
+array of pointers pointing to the actual data in memory. This makes iterating over an array containing 
+strings very slow. pandas 1.0 initially introduced said
+&lt;code&gt;StringDtype&lt;/code&gt; that allowed easier and consistent operations on strings. This dtype was still backed by Python 
+strings and thus, wasn't very performant either. Rather, it provided a clear abstraction of string
+data.&lt;/p&gt;
+&lt;p&gt;pandas 1.3 finally introduced an enhancement to create an efficient string dtype. This datatype is backed by PyArrow arrays.
+&lt;a href="https://arrow.apache.org/docs/python/index.html"&gt;PyArrow&lt;/a&gt; provides a data structure that enables 
+performant and memory efficient string operations.
+Starting from that point on, users could use a string dtype that was contiguous in memory and thus
+very fast. This dtype can be requested through &lt;code&gt;string[pyarrow]&lt;/code&gt;. Alternatively, we can request it
+by specifying &lt;code&gt;string&lt;/code&gt; as the dtype and setting:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;pd.options.mode.string_storage = &amp;quot;pyarrow&amp;quot;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Since Dask builds on top of pandas, this string dtype is available here as well. On top of that, 
+Dask offers a convenient option that automatically converts all string-data to &lt;code&gt;string[pyarrow]&lt;/code&gt;.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;dask.config.set({&amp;quot;dataframe.convert-string&amp;quot;: True})
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;This is a convenient way of
+avoiding NumPy object dtype for string columns. Additionally, it has the advantage that it
+creates PyArrow arrays natively for I/O methods that operate with Arrow objects. 
+On top of providing huge performance improvements, PyArrow strings consume significantly less
+memory. An average Dask DataFrame with PyArrow strings consumes around 33-50% of the original
+memory compared to NumPy object. This solves the biggest pain point for Dask users that is running
+out of memory when operating on large datasets. The option enables global testing in Dask's test
+suite. This ensures that PyArrow backed strings are mature enough to provide a smooth user
+experience.&lt;/p&gt;
+&lt;p&gt;Let's look at a few operations that represent typical string operations. We will start with a couple
+of pandas examples before switching over to operations on our Dask cluster.&lt;/p&gt;
+&lt;p&gt;We will use &lt;code&gt;df.convert_dtypes&lt;/code&gt; to convert our object columns to PyArrow string arrays. There
+are more efficient ways of getting PyArrow dtypes in pandas that we will explore later. We will use
+the Uber-Lyft dataset from December 2022, this file fits comfortably into memory on my machine.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;import pandas as pd
+
+pd.options.mode.string_storage = &amp;quot;pyarrow&amp;quot;
+
+df = pd.read_parquet(
+    &amp;quot;fhvhv_tripdata_2022-10.parquet&amp;quot;,
+    columns=[
+        &amp;quot;tips&amp;quot;, 
+        &amp;quot;hvfhs_license_num&amp;quot;, 
+        &amp;quot;driver_pay&amp;quot;, 
+        &amp;quot;base_passenger_fare&amp;quot;, 
+        &amp;quot;dispatching_base_num&amp;quot;,
+    ],
+)
+df = df.convert_dtypes(
+    convert_boolean=False, 
+    convert_floating=False, 
+    convert_integer=False,
+)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Our DataFrame has NumPy dtypes for all non-string columns in this example. Let's start with
+filtering for all rides that were operated by Uber.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df[df[&amp;quot;hvfhs_license_num&amp;quot;] == &amp;quot;HV0003&amp;quot;]
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;This operation creates a mask with True/False values that specify whether Uber operated a ride. 
+This doesn't utilize any special string methods, but the equality comparison dispatches to 
+PyArrow. Next, we will use the String accessor that is implemented in pandas and gives you access
+to all kinds of string operations on a per-element basis. We want to find all rides that were
+dispatched from a base starting with &lt;code&gt;"B028"&lt;/code&gt;.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df[df[&amp;quot;dispatching_base_num&amp;quot;].str.startswith(&amp;quot;B028&amp;quot;)]
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;&lt;code&gt;startswith&lt;/code&gt; iterates over our array and checks whether every string starts with the specified
+substring. The advantage of PyArrow is easy to see. The data are contiguous in memory, which means
+that we can efficiently iterate over them. Additionally, these arrays have a second array with 
+pointers that point to the first memory address of every string, which makes computing the starting
+sequence even faster.&lt;/p&gt;
+&lt;p&gt;Finally, we look at a &lt;code&gt;GroupBy&lt;/code&gt; operation that groups over PyArrow string columns. The calculation
+of the groups can dispatch to PyArrow as well, which is more efficient than factorizing
+over a NumPy object array.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df.groupby(
+    [&amp;quot;hvfhs_license_num&amp;quot;, &amp;quot;dispatching_base_num&amp;quot;]
+).mean(numeric_only=True)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Let's look at how these operations stack up against DataFrames where string columns are represented
+by NumPy object dtype.&lt;/p&gt;
+&lt;p&gt;&lt;img alt="" src=".././images/arrow_backend/pandas_string_performance_comparison.svg"&gt;&lt;/p&gt;
+&lt;p&gt;The results are more or less as we expected. The string based comparisons are significantly faster
+when performed on PyArrow strings. Most string accessors should provide a huge performance 
+improvement. Another interesting observation is memory usage, it is reduced by roughly 50% compared
+to NumPy object dtype. We will take a closer look at this with Dask.&lt;/p&gt;
+&lt;p&gt;Dask mirrors the pandas API and dispatches to pandas for most operations. Consequently, we can use
+the same API to access PyArrow strings. A convenient option to request these globally is the option
+mentioned above, which is what we will use here:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;dask.config.set({&amp;quot;dataframe.convert-string&amp;quot;: True})
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;One of the biggest benefits of this option during development is that it enables easy testing of PyArrow
+strings globally in Dask to make sure that everything works smoothly. We will utilize the Uber-Lyft
+dataset for our explorations. The dataset takes up around 240GB of memory on our cluster. Our initial
+cluster has 30 machines, which is enough to perform our computations comfortably.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;import dask
+import dask.dataframe as dd
+from distributed import wait
+
+dask.config.set({&amp;quot;dataframe.convert-string&amp;quot;: True})
+
+df = dd.read_parquet(
+    &amp;quot;s3://coiled-datasets/uber-lyft-tlc/&amp;quot;,
+    storage_options={&amp;quot;anon&amp;quot;: True},
+)
+df = df.persist()
+wait(df)  # Wait till the computation is finished
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;We persist the data in memory so that I/O performance does not influence our performance measurements. Our data is now
+available in memory, which makes access fast. We will perform computations that are similar to our
+pandas computations. One of the main goals is to show that the benefits from pandas will 
+translate to computations in a distributed environment with Dask.&lt;/p&gt;
+&lt;p&gt;One of the first observations is that the DataFrame with PyArrow backed string columns consumes only
+130GB of memory, only half of what it consumed with NumPy object columns. We have only a few string
+columns in our DataFrame, which means that the memory savings for string columns are actually higher than around 50%
+when switching to PyArrow strings. Consequently, we will reduce the size of our cluster to 15 workers
+when performing our operations on PyArrow string columns.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;cluster.scale(15)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;We measure the performance of the mask-operation and one of the String accessors together through
+subsequent filtering of the DataFrame. &lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df = df[df[&amp;quot;hvfhs_license_num&amp;quot;] == &amp;quot;HV0003&amp;quot;]
+df = df[df[&amp;quot;dispatching_base_num&amp;quot;].str.startswith(&amp;quot;B028&amp;quot;)]
+df = df.persist()
+wait(df)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;We see that we can use the same methods as in our previous example. This makes transitioning from
+pandas to Dask relatively easy.&lt;/p&gt;
+&lt;p&gt;Additionally, we will again compute a &lt;code&gt;GroupBy&lt;/code&gt; operation on our data. This is significantly harder
+in a distributed environment, which makes the results more interesting. The previous operations
+parallelize relatively easy onto a large cluster, while this is harder with &lt;code&gt;GroupBy&lt;/code&gt;.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df = df.groupby(
+    [&amp;quot;hvfhs_license_num&amp;quot;, &amp;quot;dispatching_base_num&amp;quot;]
+).mean(numeric_only=True)
+
+df = df.persist()
+wait(df)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;&lt;img alt="" src=".././images/arrow_backend/Dask_string_performance_comparison.svg"&gt;&lt;/p&gt;
+&lt;p&gt;We get nice improvements by factors of 2 and 3. This is especially intriguing since we reduced
+the size of our cluster from 30 machines to 15, reducing the cost by 50%. Subsequently, we also reduced our computational 
+resources by a factor of 2, which makes our performance improvement even more impressive. Thus,
+the performance improved by a factor of 4 and 6 respectively. We can
+perform the same computations on a smaller cluster, which saves money and is more efficient in general
+and still get a performance boost out of it.&lt;/p&gt;
+&lt;p&gt;Summarizing, we saw that PyArrow string-columns are a huge improvement to NumPy object columns in
+DataFrames. Switching to PyArrow strings is a relatively small change that might improve the 
+performance and efficiency of an average workflow that depends on string data. These improvements 
+are visible in pandas and Dask!&lt;/p&gt;
+&lt;h2 id="engine-keyword-in-io-methods"&gt;Engine keyword in I/O methods&lt;/h2&gt;
+&lt;p&gt;We will now take a look at I/O functions in pandas and Dask. Some functions have custom implementations, 
+like &lt;code&gt;read_csv&lt;/code&gt;, while others dispatch to another library, like &lt;code&gt;read_excel&lt;/code&gt; to 
+&lt;code&gt;openpyxl&lt;/code&gt;. Some of these functions gained a new &lt;code&gt;engine&lt;/code&gt; keyword that enables us to dispatch to 
+&lt;code&gt;PyArrow&lt;/code&gt;. The PyArrow parsers are multithreaded by default and hence, can provide a significant 
+performance improvement.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;pd.read_csv(&amp;quot;Crimes_-_2001_to_Present.csv&amp;quot;, engine=&amp;quot;pyarrow&amp;quot;)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;This configuration will return the same results as the other engines. The only difference is that
+PyArrow is used to read the data. The same option is available for &lt;code&gt;read_json&lt;/code&gt;.
+The PyArrow-engines were added to provide a faster way of reading data. The improved speed is only
+one of the advantages. The PyArrow parsers return the data as a 
+&lt;a href="https://arrow.apache.org/docs/python/generated/pyarrow.Table.html"&gt;PyArrow Table&lt;/a&gt;. A PyArrow Table
+provides built-in functionality to convert to a pandas &lt;code&gt;DataFrame&lt;/code&gt;. Depending on the data, this
+might require a copy while casting to NumPy (string, integers with missing values, ...), which
+brings an unnecessary slowdown. This is where the PyArrow &lt;code&gt;dtype_backend&lt;/code&gt; comes in.
+It is implemented as an &lt;code&gt;ArrowExtensionArray&lt;/code&gt; class in pandas, which is backed by a 
+&lt;a href="https://arrow.apache.org/docs/python/generated/pyarrow.ChunkedArray.html"&gt;PyArrow ChunkedArray&lt;/a&gt;.
+As a direct consequence, the conversion from a PyArrow Table to pandas is extremely cheap since it
+does not require any copies. &lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;pd.read_csv(&amp;quot;Crimes_-_2001_to_Present.csv&amp;quot;, engine=&amp;quot;pyarrow&amp;quot;, dtype_backend=&amp;quot;pyarrow&amp;quot;)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;This returns a &lt;code&gt;DataFrame&lt;/code&gt; that is backed by PyArrow arrays. pandas isn't optimized everywhere
+yet, so this can give you a slowdown in follow-up operations. It might be worth it if
+the workload is particularly I/O heavy. Let's look at a direct comparison:&lt;/p&gt;
+&lt;p&gt;&lt;img alt="" src="./../images/arrow_backend/pandas_read_csv_performance.svg"&gt;&lt;/p&gt;
+&lt;p&gt;We can see that PyArrow-engine and PyArrow dtypes provide a 15x speedup compared
+to the C-engine.&lt;/p&gt;
+&lt;p&gt;The same advantages apply to Dask. Dask wraps the pandas csv reader and
+hence, gets the same features for free.&lt;/p&gt;
+&lt;p&gt;The comparison for Dask is a bit more complicated. Firstly, my example reads the data from my local machine while
+our Dask examples will read the data from a S3 bucket. Network speed will
+be a relevant component. Also, distributed computations have some
+overhead that we have to account for. &lt;/p&gt;
+&lt;p&gt;We are purely looking for speed here, so we will read some timeseries data
+from a public S3 bucket. &lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;import dask.dataframe as dd
+from distributed import wait
+
+df = dd.read_csv(
+    &amp;quot;s3://coiled-datasets/timeseries/20-years/csv/&amp;quot;,
+    storage_options={&amp;quot;anon&amp;quot;: True},
+    engine=&amp;quot;pyarrow&amp;quot;,
+    parse_dates=[&amp;quot;timestamp&amp;quot;],
+)
+df = df.persist()
+wait(df)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;We will execute this code-snippet for &lt;code&gt;engine="c"&lt;/code&gt;, &lt;code&gt;engine="pyarrow"&lt;/code&gt; and additionally
+&lt;code&gt;engine="pyarrow"&lt;/code&gt; with &lt;code&gt;dtype_backend="pyarrow"&lt;/code&gt;. Let's look at some performance comparisons.
+Both examples were executed with 30 machines on the cluster.&lt;/p&gt;
+&lt;p&gt;&lt;img alt="" src="./../images/arrow_backend/Dask_read_csv_performance.svg"&gt;&lt;/p&gt;
+&lt;p&gt;The PyArrow-engine runs around 2 times as fast as the C-engine. Both implementations used the same
+number of machines. The memory usage was reduced by 50% with the PyArrow &lt;code&gt;dtype_backend&lt;/code&gt;. The same
+reduction is available if only object columns are converted to PyArrow strings, which gives
+a better experience in follow-up operations.&lt;/p&gt;
+&lt;p&gt;We've seen that the Arrow-engines provide significant speedups over the custom C implementations.
+They don't support all features of the custom implementations yet, but if your use-case is 
+compatible with the supported options, you should get a significant speedup for free.&lt;/p&gt;
+&lt;p&gt;The case with the PyArrow &lt;code&gt;dtype_backend&lt;/code&gt; is a bit more complicated. Not all areas of the API are
+optimized yet. If you spend a lot of time processing your data outside I/O functions, then this might not 
+give you what you need. It will speed up your processing if your workflow spends a lot of
+time reading the data.&lt;/p&gt;
+&lt;h2 id="dtype_backend-in-pyarrow-native-io-readers"&gt;dtype_backend in PyArrow-native I/O readers&lt;/h2&gt;
+&lt;p&gt;Some other I/O methods have an engine keyword as well. &lt;code&gt;read_parquet&lt;/code&gt; is the most popular 
+example. The situation is a bit different here though. These I/O methods were already using the
+PyArrow engine by default. So the parsing is as efficient as possible. One other potential
+performance benefit is the usage of the &lt;code&gt;dtype_backend&lt;/code&gt; keyword. Normally, PyArrow will return
+a PyArrow table which is then converted to a pandas DataFrame. The PyArrow dtypes are converted to
+their NumPy equivalent. Setting &lt;code&gt;dtype_backend="pyarrow"&lt;/code&gt; avoids this conversion. This gives 
+a decent performance improvement and saves a lot of memory.&lt;/p&gt;
+&lt;p&gt;Let's look at one pandas performance comparison. We read the Uber-Lyft taxi data from December 2022.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;pd.read_parquet(&amp;quot;fhvhv_tripdata_2022-10.parquet&amp;quot;)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;We read the data with and without &lt;code&gt;dtype_backend="pyarrow"&lt;/code&gt;.&lt;/p&gt;
+&lt;p&gt;&lt;img alt="" src="../images/arrow_backend/pandas_read_parquet_performance.svg"&gt;&lt;/p&gt;
+&lt;p&gt;We can easily see that the most time is taken up by the conversion after the reading of the
+Parquet file was finished. The function runs 3 times as fast when avoiding
+the conversion to NumPy dtypes.&lt;/p&gt;
+&lt;p&gt;Dask has a specialized implementation for &lt;code&gt;read_parquet&lt;/code&gt; that has some advantages tailored to
+distributed workloads compared to the pandas implementation. The common denominator is that both
+functions dispatch to PyArrow to read the parquet file. Both have in common that the data are
+converted to NumPy dtypes after successfully reading the file. We are reading
+the whole Uber-Lyft dataset, which consumes around 240GB of memory on our
+cluster.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;import dask.dataframe as dd
+from distributed import wait
+
+df = dd.read_parquet(
+    &amp;quot;s3://coiled-datasets/uber-lyft-tlc/&amp;quot;,
+    storage_options={&amp;quot;anon&amp;quot;: True},
+)
+df = df.persist()
+wait(df)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;We read the dataset in 3 different configurations. First with the default NumPy dtypes, then with
+the PyArrow string option turned on:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;dask.config.set({&amp;quot;dataframe.convert-string&amp;quot;: True})
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;And lastly with &lt;code&gt;dtype_backend="pyarrow"&lt;/code&gt;. Let's look at what this means performance-wise:&lt;/p&gt;
+&lt;p&gt;&lt;img alt="" src="../images/arrow_backend/Dask_read_parquet_performance.svg"&gt;&lt;/p&gt;
+&lt;p&gt;Similar to our pandas example, we can see that converting to NumPy dtypes takes up a huge chunk of
+our runtime. The PyArrow dtypes give us a nice performance improvement. Both PyArrow configurations
+use half of the memory that the NumPy dtypes are using.&lt;/p&gt;
+&lt;p&gt;PyArrow-strings are a lot more mature than the general PyArrow &lt;code&gt;dtype_backend&lt;/code&gt;. Based on the 
+performance chart we got, we get roughly the same performance improvement when using PyArrow 
+strings and NumPy dtypes for all other dtypes. If a workflow does not work well enough on PyArrow 
+dtypes yet, I'd recommend enabling PyArrow strings only.&lt;/p&gt;
+&lt;h2 id="conclusion"&gt;Conclusion&lt;/h2&gt;
+&lt;p&gt;We have seen how we can leverage PyArrow in pandas in Dask right now. PyArrow backed string columns have the
+potential to impact most workflows in a positive way and provide a smooth user experience with
+pandas 2.0. Dask has a convenient option to globally avoid NumPy object dtype when possible, which
+makes opting into PyArrow backed strings even easier. PyArrow also provides huge speedups in other
+areas where available. The PyArrow &lt;code&gt;dtype_backend&lt;/code&gt; is still pretty new and has the 
+potential to cut I/O times significantly right now. It is certainly worth exploring whether it can solve
+performance bottlenecks. There is a lot of work going on to improve support for general PyArrow
+dtypes with the potential to speed up an average workflow in the near future.&lt;/p&gt;
+&lt;p&gt;There is a current proposal in pandas to start inferring strings as PyArrow backed strings by
+default starting from pandas 3.0. Additionally, it includes many more areas where leaning more
+onto PyArrow makes a lot of sense (e.g. Decimals, structured data, ...). You can read up on the
+proposal &lt;a href="https://github.com/pandas-dev/pandas/pull/52711"&gt;here&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Thank you for reading. Feel free to reach out to share your thoughts and feedback 
+about PyArrow support in both libraries.&lt;/p&gt;</content><category term="posts"></category><category term="pandas"></category><category term="dask"></category></entry><entry><title>Welcoming pandas 2.0</title><link href="https://phofl.github.io/pandas-20.html" rel="alternate"></link><published>2023-03-23T00:00:00+01:00</published><updated>2023-03-23T00:00:00+01:00</updated><author><name>Patrick Hoefler</name></author><id>tag:phofl.github.io,2023-03-23:/pandas-20.html</id><summary type="html">&lt;p&gt;&lt;em&gt;How the API is changing and how to leverage new functionalities&lt;/em&gt;&lt;/p&gt;
 &lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
 &lt;p&gt;After 3 years of development, the second pandas 2.0 release candidate was released on the 16th of 
 March. There are many new features in pandas 2.0, including improved extension array

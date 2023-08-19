@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+        <meta name="author" content="Patrick Hoefler">
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width">
+        <title>Utilizing PyArrow to improve pandas and Dask workflows | Patrick Hoefler</title>
+
+	<link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+	<link rel="icon" href="/favicon.ico" type="image/x-icon">
+        <link rel="alternate" type="application/atom+xml" title="Patrick Hoefler blog atom feed" href="/feeds/all.atom.xml" />
+        <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,700' rel='stylesheet' type='text/css'>
+
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+        <link rel="stylesheet" type="text/css" href="/theme/css/icons.css"/>
+        <link rel="stylesheet" type="text/css" href="/theme/css/font-awesome.min.css"/>
+        <link rel="stylesheet" type="text/css" href="/theme/css/style.min.css"/>
+        <style>.highlight .hll { background-color: #ffffcc }
+.highlight .c { color: #60a0b0; font-style: italic } /* Comment */
+.highlight .err { border: 1px solid #FF0000 } /* Error */
+.highlight .k { color: #007020; font-weight: bold } /* Keyword */
+.highlight .o { color: #666666 } /* Operator */
+.highlight .cm { color: #60a0b0; font-style: italic } /* Comment.Multiline */
+.highlight .cp { color: #007020 } /* Comment.Preproc */
+.highlight .c1 { color: #60a0b0; font-style: italic } /* Comment.Single */
+.highlight .cs { color: #60a0b0; background-color: #fff0f0 } /* Comment.Special */
+.highlight .gd { color: #A00000 } /* Generic.Deleted */
+.highlight .ge { font-style: italic } /* Generic.Emph */
+.highlight .gr { color: #FF0000 } /* Generic.Error */
+.highlight .gh { color: #000080; font-weight: bold } /* Generic.Heading */
+.highlight .gi { color: #00A000 } /* Generic.Inserted */
+.highlight .go { color: #808080 } /* Generic.Output */
+.highlight .gp { color: #c65d09; font-weight: bold } /* Generic.Prompt */
+.highlight .gs { font-weight: bold } /* Generic.Strong */
+.highlight .gu { color: #800080; font-weight: bold } /* Generic.Subheading */
+.highlight .gt { color: #0040D0 } /* Generic.Traceback */
+.highlight .kc { color: #007020; font-weight: bold } /* Keyword.Constant */
+.highlight .kd { color: #007020; font-weight: bold } /* Keyword.Declaration */
+.highlight .kn { color: #007020; font-weight: bold } /* Keyword.Namespace */
+.highlight .kp { color: #007020 } /* Keyword.Pseudo */
+.highlight .kr { color: #007020; font-weight: bold } /* Keyword.Reserved */
+.highlight .kt { color: #902000 } /* Keyword.Type */
+.highlight .m { color: #40a070 } /* Literal.Number */
+.highlight .s { color: #4070a0 } /* Literal.String */
+.highlight .na { color: #4070a0 } /* Name.Attribute */
+.highlight .nb { color: #007020 } /* Name.Builtin */
+.highlight .nc { color: #0e84b5; font-weight: bold } /* Name.Class */
+.highlight .no { color: #60add5 } /* Name.Constant */
+.highlight .nd { color: #555555; font-weight: bold } /* Name.Decorator */
+.highlight .ni { color: #d55537; font-weight: bold } /* Name.Entity */
+.highlight .ne { color: #007020 } /* Name.Exception */
+.highlight .nf { color: #06287e } /* Name.Function */
+.highlight .nl { color: #002070; font-weight: bold } /* Name.Label */
+.highlight .nn { color: #0e84b5; font-weight: bold } /* Name.Namespace */
+.highlight .nt { color: #062873; font-weight: bold } /* Name.Tag */
+.highlight .nv { color: #bb60d5 } /* Name.Variable */
+.highlight .ow { color: #007020; font-weight: bold } /* Operator.Word */
+.highlight .w { color: #bbbbbb } /* Text.Whitespace */
+.highlight .mf { color: #40a070 } /* Literal.Number.Float */
+.highlight .mh { color: #40a070 } /* Literal.Number.Hex */
+.highlight .mi { color: #40a070 } /* Literal.Number.Integer */
+.highlight .mo { color: #40a070 } /* Literal.Number.Oct */
+.highlight .sb { color: #4070a0 } /* Literal.String.Backtick */
+.highlight .sc { color: #4070a0 } /* Literal.String.Char */
+.highlight .sd { color: #4070a0; font-style: italic } /* Literal.String.Doc */
+.highlight .s2 { color: #4070a0 } /* Literal.String.Double */
+.highlight .se { color: #4070a0; font-weight: bold } /* Literal.String.Escape */
+.highlight .sh { color: #4070a0 } /* Literal.String.Heredoc */
+.highlight .si { color: #70a0d0; font-style: italic } /* Literal.String.Interpol */
+.highlight .sx { color: #c65d09 } /* Literal.String.Other */
+.highlight .sr { color: #235388 } /* Literal.String.Regex */
+.highlight .s1 { color: #4070a0 } /* Literal.String.Single */
+.highlight .ss { color: #517918 } /* Literal.String.Symbol */
+.highlight .bp { color: #007020 } /* Name.Builtin.Pseudo */
+.highlight .vc { color: #bb60d5 } /* Name.Variable.Class */
+.highlight .vg { color: #bb60d5 } /* Name.Variable.Global */
+.highlight .vi { color: #bb60d5 } /* Name.Variable.Instance */
+.highlight .il { color: #40a070 } /* Literal.Number.Integer.Long */</style>
+        <style>body {
+  margin: 0;
+  padding: 0;
+  font: 15px 'Source Sans Pro', sans-serif;
+  line-height: 1.6em;
+  color: #222;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+a {
+  color: #007EE5;
+  text-decoration: none;
+}
+a:hover {
+  color: #007EE5;
+  text-decoration: none;
+}
+header.main-header {
+  background: none repeat scroll 0% 0% #205F29;
+  margin-bottom: 0px;
+}
+header.main-header a {
+  color: #fff;
+}
+header.main-header .container {
+  max-width: 1000px;
+}
+header.main-header .container nav a:hover {
+  background-color: #5C881C;
+}
+article {
+  margin: 0;
+}
+article header.about {
+  margin-bottom: 0px;
+  padding-bottom: 0px;
+}
+article header {
+  margin-bottom: 20px;
+  padding-bottom: 20px;
+}
+article header h1 {
+  margin-bottom: 2px;
+  font-weight: 700;
+  color: #000;
+}
+article header time {
+  color: #9E9E9E;
+  font-size: 0.85em;
+  float: right;
+}
+article header time.left {
+  color: #9E9E9E;
+  font-size: 0.85em;
+  float: left;
+}
+article div.social-links ul {
+  padding: 0px;
+}
+article div.social-links li {
+  display: inline;
+  font-size: 20px;
+}
+article div.social-links li a {
+  color: #000;
+  padding: 10px;
+}
+article div.social-links li a:hover {
+  color: #666;
+  text-decoration: none;
+}
+article p {
+  font-size: 16px;
+  margin-bottom: 20px;
+  line-height: 1.6em;
+}
+article p.note {
+  background: #f5f5f5;
+  border: 1px solid #ddd;
+  padding: 0.533em 0.733em;
+}
+article p.update {
+  background-color: #FEEFB3;
+  border: 1px solid #e6e68a;
+  padding: 0.533em 0.733em;
+}
+article p.alert {
+  background-color: #ffe2e2;
+  border: 1px solid #ffb2b2;
+  padding: 0.533em 0.733em;
+}
+article ul,
+article ol {
+  margin-top: 0px;
+  margin-bottom: 25px;
+}
+article li {
+  font-size: 16px;
+  line-height: 1.6em;
+}
+article a:hover {
+  text-decoration: underline;
+}
+article blockquote {
+  border-left: 2px solid #c7c7cc;
+  color: #666;
+  margin: 30px 0;
+  padding: 0 0 0 25px;
+}
+article img {
+  max-width: 100%;
+}
+article code {
+  color: #333;
+  background-color: #EEE;
+  border-radius: 0;
+  font-size: 13px;
+}
+article .meta {
+  font-size: 11px;
+}
+article .meta a:hover {
+  text-decoration: none;
+}
+article .meta div {
+  margin-bottom: 20px;
+  display: block;
+}
+article .meta a.tag {
+  margin: 0 10px 10px 0;
+  padding: 1px 12px;
+  display: inline-block;
+  font-size: 14px;
+  color: rgba(0, 0, 0, 0.8);
+  background: rgba(0, 0, 0, 0.05);
+}
+article .meta a.tag:hover {
+  background: rgba(0, 0, 0, 0.15);
+}
+article .meta a.read_more,
+article .meta a.comments_btn {
+  font-size: 14px;
+  font-weight: 800;
+  padding: 10px 20px;
+  color: #205F29;
+  background: #FFF;
+  border: 1px solid #205F29;
+}
+article .meta a.read_more:hover,
+article .meta a.comments_btn:hover {
+  color: #FFF;
+  background: #5C881C;
+}
+.index {
+  max-width: 700px;
+}
+.index article header h2 {
+  font-size: 36px;
+  margin-bottom: 2px;
+  font-weight: 700;
+}
+.index article header h2 a {
+  color: #000;
+}
+.index article header h2 a:hover {
+  color: #007EE5;
+  text-decoration: none;
+}
+.index .separator {
+  padding: 40px 0 0 0;
+  margin: 0 0 40px 0;
+  height: 10px;
+  border-bottom: solid 1px #CCC;
+}
+.index .pagination {
+  display: block;
+  margin-bottom: 100px;
+}
+.index .pagination .left {
+  text-align: right;
+}
+.index .pagination .right {
+  text-align: left;
+}
+.index .pagination a {
+  display: inline-block;
+  border: 2px solid #5C881C;
+  margin: 0 5px;
+  padding: 8px 20px;
+  font-weight: bold;
+  color: #5C881C;
+}
+.index .pagination a:hover {
+  color: #FFF;
+  background: #5C881C;
+}
+.post {
+  max-width: 700px;
+}
+.post h2:before {
+  content: "# ";
+  font-weight: bold;
+  color: #DDD;
+}
+.post h3:before {
+  content: "## ";
+  font-weight: bold;
+  color: #DDD;
+}
+.post h4:before {
+  content: "### ";
+  font-weight: bold;
+  color: #DDD;
+}
+.post article .meta {
+  margin: 50px 0 100px;
+}
+.list {
+  max-width: 700px;
+}
+.list ul.double-list {
+  margin: 0 auto 60px;
+  padding: 0;
+  list-style-type: none;
+}
+.list ul.double-list li {
+  padding: 5px 0;
+}
+.list ul.double-list li h2 {
+  font-size: 1em;
+  display: inline;
+  font-weight: normal;
+}
+.list ul.double-list li span {
+  font-family: sans-serif;
+  text-transform: uppercase;
+  text-align: right;
+  float: right;
+  padding-top: 3px;
+  font-size: 12px;
+  color: #999;
+}
+.full-width-content {
+  padding-top: 10px;
+  padding-left: 0px;
+  padding-right: 0px;
+  margin-left: -20px;
+  margin-right: -20px;
+}
+.col-xs-1,
+.col-sm-1,
+.col-md-1,
+.col-lg-1,
+.col-xs-2,
+.col-sm-2,
+.col-md-2,
+.col-lg-2,
+.col-xs-3,
+.col-sm-3,
+.col-md-3,
+.col-lg-3,
+.col-xs-4,
+.col-sm-4,
+.col-md-4,
+.col-lg-4,
+.col-xs-5,
+.col-sm-5,
+.col-md-5,
+.col-lg-5,
+.col-xs-6,
+.col-sm-6,
+.col-md-6,
+.col-lg-6,
+.col-xs-7,
+.col-sm-7,
+.col-md-7,
+.col-lg-7,
+.col-xs-8,
+.col-sm-8,
+.col-md-8,
+.col-lg-8,
+.col-xs-9,
+.col-sm-9,
+.col-md-9,
+.col-lg-9,
+.col-xs-10,
+.col-sm-10,
+.col-md-10,
+.col-lg-10,
+.col-xs-11,
+.col-sm-11,
+.col-md-11,
+.col-lg-11,
+.col-xs-12,
+.col-sm-12,
+.col-md-12,
+.col-lg-12 {
+  padding-right: 0px;
+  padding-left: 0px;
+}</style>
+
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+	<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+
+
+    </head>
+
+    <body>
+        <header class="navbar navbar-inverse bs-docs-nav">
+            <div class="container-fluid">
+                <div class="navbar-header">
+		  <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#theNavbar">
+		    <span class="icon-bar"></span>
+		    <span class="icon-bar"></span>
+		    <span class="icon-bar"></span>
+		  </button>
+                  <a class="navbar-brand" href="/" title="Home" class="title">Patrick Hoefler</a>
+                </div>
+                <nav class="collapse navbar-collapse bs-navbar-collapse" role="navigation" id="theNavbar">
+		    <ul class="nav navbar-nav navbar-right">
+                            <li><a href="/pages/about.html" title="About">About</a></li>
+                            <li><a href="/archives.html" title="Archive">Archive</a></li>
+                    </ul>
+                </nav>
+            </div>
+        </header>
+
+        <div id="wrap">
+<div class="container post">
+    <article>
+        <header>
+            <h1>Utilizing PyArrow to improve pandas and Dask workflows</h1>
+            <time datetime="article.date.isoformat()" pubdate>Mon 05 June 2023</time>
+        </header>
+
+        <div class="article_content">
+            <p><em>Get the most out of PyArrow support in pandas and Dask right now</em></p>
+<p><img alt="" src="../images/arrow_backend/title.svg"></p>
+<h2 id="introduction">Introduction</h2>
+<p>This post investigates where we can use PyArrow to improve our pandas and Dask workflows right now.
+General support for PyArrow dtypes was added with pandas 2.0 to <a href="https://pandas.pydata.org">pandas</a> 
+and <a href="https://www.dask.org?utm_source=phofl&amp;utm_medium=pyarrow-in-pandas-and-dask">Dask</a>. This solves a
+bunch of long-standing pains for users of both libraries. pandas users often complain to me that
+pandas does not support missing values in arbitrary dtypes or that non-standard dtypes are not very
+well supported. A particularly annoying problem for
+Dask users is running out of memory with large datasets. PyArrow backed string columns 
+consume up to 70% less memory compared to NumPy object columns and thus have the potential to 
+mitigate this problem as well as providing a huge performance improvement.</p>
+<p>Support for PyArrow dtypes in pandas, and by extension Dask, is still relatively new. I would 
+recommend caution when opting into the PyArrow <code>dtype_backend</code> until at least pandas 2.1 is 
+released. Not every part of both APIs is optimized yet. You should be able to get a big improvement 
+in certain workflows though. This post will go over a couple of examples where I'd recommend switching to 
+PyArrow right away, because it already provides huge benefits. </p>
+<p>Dask itself can benefit in various ways from PyArrow dtypes. We will investigate how PyArrow backed
+strings can easily mitigate the pain point of running out of memory on Dask clusters and how we 
+can improve performance through utilizing PyArrow.</p>
+<p>I am part of the pandas core team and was heavily involved in implementing and improving PyArrow 
+support in pandas. I've recently joined 
+<a href="https://www.coiled.io?utm_source=phofl&amp;utm_medium=pyarrow-in-pandas-and-dask">Coiled</a> where I 
+am working on Dask. One of my tasks is improving the PyArrow integration.</p>
+<h2 id="general-overview-of-pyarrow-support">General overview of PyArrow support</h2>
+<p>PyArrow dtypes were initially introduced in pandas 1.5. The implementation was experimental and I
+wouldn't recommend using it on pandas 1.5.x. Support for them is still relatively new. 
+pandas 2.0 provides a huge improvement, including making opting into PyArrow backed DataFrames easy.
+We are still working on supporting them properly everywhere, and thus they should be used with caution
+until at least pandas 2.1 is released. Both projects work continuously to improve support throughout Dask and 
+pandas.</p>
+<p>We encourage users to try them out! This will help us to get a better idea of what is still lacking
+support or is not fast enough. Giving feedback helps us improve support and will drastically reduce the
+time that is necessary to create a smooth user experience.</p>
+<h2 id="dataset">Dataset</h2>
+<p>We will use the taxi dataset from New York City that contains all Uber and Lyft rides. It has
+some interesting attributes like price, tips, driver pay and many more. The dataset can be found
+<a href="https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page">here</a> 
+(see <a href="https://www.nyc.gov/home/terms-of-use.page">terms of service</a>) and is stored in parquet
+files. When analyzing Dask queries, we will use a publicly available S3 bucket to simplify our
+queries: <code>s3://coiled-datasets/uber-lyft-tlc/</code>. We will use the dataset from December 2022 
+for our pandas queries, since this is the maximum that fits comfortably into memory on my 
+machine (24GB of RAM). We have to avoid stressing our RAM usage, since this might introduce side 
+effects when analyzing performance.</p>
+<p>We will also investigate the performance of <code>read_csv</code>. We will use the <em>Crimes in Chicago</em> dataset
+that can be found <a href="https://www.kaggle.com/datasets/utkarshx27/crimes-2001-to-present">here</a>.</p>
+<h2 id="dask-cluster">Dask cluster</h2>
+<p>There are various different options to set up a Dask cluster, see the 
+<a href="https://docs.dask.org/en/stable/deploying.html?utm_source=phofl&amp;utm_medium=pyarrow-in-pandas-and-dask">Dask documentation</a> for
+a non-exhaustive list of deployment options. I will use
+<a href="https://docs.coiled.io/user_guide/index.html?utm_source=phofl&amp;utm_medium=pyarrow-in-pandas-and-dask">Coiled</a> to create a cluster on AWS with
+30 machines through:</p>
+<pre><code class="language-python">import coiled
+
+cluster = coiled.Cluster(
+    n_workers=30,
+    name=&quot;dask-performance-comparisons&quot;,
+    region=&quot;us-east-2&quot;,  # this is the region of our dataset
+    worker_vm_type=&quot;m6i.large&quot;,
+)
+</code></pre>
+<p>Coiled is connected to my AWS account. It creates the cluster within my account and manages all
+resources for me. 30 machines are enough to operate on our dataset comfortably. We will investigate
+how we can reduce the required number of workers to 15 through some small 
+modifications.</p>
+<h2 id="pandas-stringdtype-backed-by-pyarrow">pandas StringDtype backed by PyArrow</h2>
+<p>We begin with a feature that was originally introduced over 3 years ago in pandas 1.0. Setting the
+dtype in pandas or Dask to <code>string</code> returns an object with <code>StringDtype</code>. This feature is relatively mature and should
+provide a smooth user experience.</p>
+<p>Historically, pandas represented string data through NumPy arrays with dtype <code>object</code>. NumPy object data is stored as an 
+array of pointers pointing to the actual data in memory. This makes iterating over an array containing 
+strings very slow. pandas 1.0 initially introduced said
+<code>StringDtype</code> that allowed easier and consistent operations on strings. This dtype was still backed by Python 
+strings and thus, wasn't very performant either. Rather, it provided a clear abstraction of string
+data.</p>
+<p>pandas 1.3 finally introduced an enhancement to create an efficient string dtype. This datatype is backed by PyArrow arrays.
+<a href="https://arrow.apache.org/docs/python/index.html">PyArrow</a> provides a data structure that enables 
+performant and memory efficient string operations.
+Starting from that point on, users could use a string dtype that was contiguous in memory and thus
+very fast. This dtype can be requested through <code>string[pyarrow]</code>. Alternatively, we can request it
+by specifying <code>string</code> as the dtype and setting:</p>
+<pre><code class="language-python">pd.options.mode.string_storage = &quot;pyarrow&quot;
+</code></pre>
+<p>Since Dask builds on top of pandas, this string dtype is available here as well. On top of that, 
+Dask offers a convenient option that automatically converts all string-data to <code>string[pyarrow]</code>.</p>
+<pre><code class="language-python">dask.config.set({&quot;dataframe.convert-string&quot;: True})
+</code></pre>
+<p>This is a convenient way of
+avoiding NumPy object dtype for string columns. Additionally, it has the advantage that it
+creates PyArrow arrays natively for I/O methods that operate with Arrow objects. 
+On top of providing huge performance improvements, PyArrow strings consume significantly less
+memory. An average Dask DataFrame with PyArrow strings consumes around 33-50% of the original
+memory compared to NumPy object. This solves the biggest pain point for Dask users that is running
+out of memory when operating on large datasets. The option enables global testing in Dask's test
+suite. This ensures that PyArrow backed strings are mature enough to provide a smooth user
+experience.</p>
+<p>Let's look at a few operations that represent typical string operations. We will start with a couple
+of pandas examples before switching over to operations on our Dask cluster.</p>
+<p>We will use <code>df.convert_dtypes</code> to convert our object columns to PyArrow string arrays. There
+are more efficient ways of getting PyArrow dtypes in pandas that we will explore later. We will use
+the Uber-Lyft dataset from December 2022, this file fits comfortably into memory on my machine.</p>
+<pre><code class="language-python">import pandas as pd
+
+pd.options.mode.string_storage = &quot;pyarrow&quot;
+
+df = pd.read_parquet(
+    &quot;fhvhv_tripdata_2022-10.parquet&quot;,
+    columns=[
+        &quot;tips&quot;, 
+        &quot;hvfhs_license_num&quot;, 
+        &quot;driver_pay&quot;, 
+        &quot;base_passenger_fare&quot;, 
+        &quot;dispatching_base_num&quot;,
+    ],
+)
+df = df.convert_dtypes(
+    convert_boolean=False, 
+    convert_floating=False, 
+    convert_integer=False,
+)
+</code></pre>
+<p>Our DataFrame has NumPy dtypes for all non-string columns in this example. Let's start with
+filtering for all rides that were operated by Uber.</p>
+<pre><code class="language-python">df[df[&quot;hvfhs_license_num&quot;] == &quot;HV0003&quot;]
+</code></pre>
+<p>This operation creates a mask with True/False values that specify whether Uber operated a ride. 
+This doesn't utilize any special string methods, but the equality comparison dispatches to 
+PyArrow. Next, we will use the String accessor that is implemented in pandas and gives you access
+to all kinds of string operations on a per-element basis. We want to find all rides that were
+dispatched from a base starting with <code>"B028"</code>.</p>
+<pre><code class="language-python">df[df[&quot;dispatching_base_num&quot;].str.startswith(&quot;B028&quot;)]
+</code></pre>
+<p><code>startswith</code> iterates over our array and checks whether every string starts with the specified
+substring. The advantage of PyArrow is easy to see. The data are contiguous in memory, which means
+that we can efficiently iterate over them. Additionally, these arrays have a second array with 
+pointers that point to the first memory address of every string, which makes computing the starting
+sequence even faster.</p>
+<p>Finally, we look at a <code>GroupBy</code> operation that groups over PyArrow string columns. The calculation
+of the groups can dispatch to PyArrow as well, which is more efficient than factorizing
+over a NumPy object array.</p>
+<pre><code class="language-python">df.groupby(
+    [&quot;hvfhs_license_num&quot;, &quot;dispatching_base_num&quot;]
+).mean(numeric_only=True)
+</code></pre>
+<p>Let's look at how these operations stack up against DataFrames where string columns are represented
+by NumPy object dtype.</p>
+<p><img alt="" src=".././images/arrow_backend/pandas_string_performance_comparison.svg"></p>
+<p>The results are more or less as we expected. The string based comparisons are significantly faster
+when performed on PyArrow strings. Most string accessors should provide a huge performance 
+improvement. Another interesting observation is memory usage, it is reduced by roughly 50% compared
+to NumPy object dtype. We will take a closer look at this with Dask.</p>
+<p>Dask mirrors the pandas API and dispatches to pandas for most operations. Consequently, we can use
+the same API to access PyArrow strings. A convenient option to request these globally is the option
+mentioned above, which is what we will use here:</p>
+<pre><code class="language-python">dask.config.set({&quot;dataframe.convert-string&quot;: True})
+</code></pre>
+<p>One of the biggest benefits of this option during development is that it enables easy testing of PyArrow
+strings globally in Dask to make sure that everything works smoothly. We will utilize the Uber-Lyft
+dataset for our explorations. The dataset takes up around 240GB of memory on our cluster. Our initial
+cluster has 30 machines, which is enough to perform our computations comfortably.</p>
+<pre><code class="language-python">import dask
+import dask.dataframe as dd
+from distributed import wait
+
+dask.config.set({&quot;dataframe.convert-string&quot;: True})
+
+df = dd.read_parquet(
+    &quot;s3://coiled-datasets/uber-lyft-tlc/&quot;,
+    storage_options={&quot;anon&quot;: True},
+)
+df = df.persist()
+wait(df)  # Wait till the computation is finished
+</code></pre>
+<p>We persist the data in memory so that I/O performance does not influence our performance measurements. Our data is now
+available in memory, which makes access fast. We will perform computations that are similar to our
+pandas computations. One of the main goals is to show that the benefits from pandas will 
+translate to computations in a distributed environment with Dask.</p>
+<p>One of the first observations is that the DataFrame with PyArrow backed string columns consumes only
+130GB of memory, only half of what it consumed with NumPy object columns. We have only a few string
+columns in our DataFrame, which means that the memory savings for string columns are actually higher than around 50%
+when switching to PyArrow strings. Consequently, we will reduce the size of our cluster to 15 workers
+when performing our operations on PyArrow string columns.</p>
+<pre><code class="language-python">cluster.scale(15)
+</code></pre>
+<p>We measure the performance of the mask-operation and one of the String accessors together through
+subsequent filtering of the DataFrame. </p>
+<pre><code class="language-python">df = df[df[&quot;hvfhs_license_num&quot;] == &quot;HV0003&quot;]
+df = df[df[&quot;dispatching_base_num&quot;].str.startswith(&quot;B028&quot;)]
+df = df.persist()
+wait(df)
+</code></pre>
+<p>We see that we can use the same methods as in our previous example. This makes transitioning from
+pandas to Dask relatively easy.</p>
+<p>Additionally, we will again compute a <code>GroupBy</code> operation on our data. This is significantly harder
+in a distributed environment, which makes the results more interesting. The previous operations
+parallelize relatively easy onto a large cluster, while this is harder with <code>GroupBy</code>.</p>
+<pre><code class="language-python">df = df.groupby(
+    [&quot;hvfhs_license_num&quot;, &quot;dispatching_base_num&quot;]
+).mean(numeric_only=True)
+
+df = df.persist()
+wait(df)
+</code></pre>
+<p><img alt="" src=".././images/arrow_backend/Dask_string_performance_comparison.svg"></p>
+<p>We get nice improvements by factors of 2 and 3. This is especially intriguing since we reduced
+the size of our cluster from 30 machines to 15, reducing the cost by 50%. Subsequently, we also reduced our computational 
+resources by a factor of 2, which makes our performance improvement even more impressive. Thus,
+the performance improved by a factor of 4 and 6 respectively. We can
+perform the same computations on a smaller cluster, which saves money and is more efficient in general
+and still get a performance boost out of it.</p>
+<p>Summarizing, we saw that PyArrow string-columns are a huge improvement to NumPy object columns in
+DataFrames. Switching to PyArrow strings is a relatively small change that might improve the 
+performance and efficiency of an average workflow that depends on string data. These improvements 
+are visible in pandas and Dask!</p>
+<h2 id="engine-keyword-in-io-methods">Engine keyword in I/O methods</h2>
+<p>We will now take a look at I/O functions in pandas and Dask. Some functions have custom implementations, 
+like <code>read_csv</code>, while others dispatch to another library, like <code>read_excel</code> to 
+<code>openpyxl</code>. Some of these functions gained a new <code>engine</code> keyword that enables us to dispatch to 
+<code>PyArrow</code>. The PyArrow parsers are multithreaded by default and hence, can provide a significant 
+performance improvement.</p>
+<pre><code class="language-python">pd.read_csv(&quot;Crimes_-_2001_to_Present.csv&quot;, engine=&quot;pyarrow&quot;)
+</code></pre>
+<p>This configuration will return the same results as the other engines. The only difference is that
+PyArrow is used to read the data. The same option is available for <code>read_json</code>.
+The PyArrow-engines were added to provide a faster way of reading data. The improved speed is only
+one of the advantages. The PyArrow parsers return the data as a 
+<a href="https://arrow.apache.org/docs/python/generated/pyarrow.Table.html">PyArrow Table</a>. A PyArrow Table
+provides built-in functionality to convert to a pandas <code>DataFrame</code>. Depending on the data, this
+might require a copy while casting to NumPy (string, integers with missing values, ...), which
+brings an unnecessary slowdown. This is where the PyArrow <code>dtype_backend</code> comes in.
+It is implemented as an <code>ArrowExtensionArray</code> class in pandas, which is backed by a 
+<a href="https://arrow.apache.org/docs/python/generated/pyarrow.ChunkedArray.html">PyArrow ChunkedArray</a>.
+As a direct consequence, the conversion from a PyArrow Table to pandas is extremely cheap since it
+does not require any copies. </p>
+<pre><code class="language-python">pd.read_csv(&quot;Crimes_-_2001_to_Present.csv&quot;, engine=&quot;pyarrow&quot;, dtype_backend=&quot;pyarrow&quot;)
+</code></pre>
+<p>This returns a <code>DataFrame</code> that is backed by PyArrow arrays. pandas isn't optimized everywhere
+yet, so this can give you a slowdown in follow-up operations. It might be worth it if
+the workload is particularly I/O heavy. Let's look at a direct comparison:</p>
+<p><img alt="" src="./../images/arrow_backend/pandas_read_csv_performance.svg"></p>
+<p>We can see that PyArrow-engine and PyArrow dtypes provide a 15x speedup compared
+to the C-engine.</p>
+<p>The same advantages apply to Dask. Dask wraps the pandas csv reader and
+hence, gets the same features for free.</p>
+<p>The comparison for Dask is a bit more complicated. Firstly, my example reads the data from my local machine while
+our Dask examples will read the data from a S3 bucket. Network speed will
+be a relevant component. Also, distributed computations have some
+overhead that we have to account for. </p>
+<p>We are purely looking for speed here, so we will read some timeseries data
+from a public S3 bucket. </p>
+<pre><code class="language-python">import dask.dataframe as dd
+from distributed import wait
+
+df = dd.read_csv(
+    &quot;s3://coiled-datasets/timeseries/20-years/csv/&quot;,
+    storage_options={&quot;anon&quot;: True},
+    engine=&quot;pyarrow&quot;,
+    parse_dates=[&quot;timestamp&quot;],
+)
+df = df.persist()
+wait(df)
+</code></pre>
+<p>We will execute this code-snippet for <code>engine="c"</code>, <code>engine="pyarrow"</code> and additionally
+<code>engine="pyarrow"</code> with <code>dtype_backend="pyarrow"</code>. Let's look at some performance comparisons.
+Both examples were executed with 30 machines on the cluster.</p>
+<p><img alt="" src="./../images/arrow_backend/Dask_read_csv_performance.svg"></p>
+<p>The PyArrow-engine runs around 2 times as fast as the C-engine. Both implementations used the same
+number of machines. The memory usage was reduced by 50% with the PyArrow <code>dtype_backend</code>. The same
+reduction is available if only object columns are converted to PyArrow strings, which gives
+a better experience in follow-up operations.</p>
+<p>We've seen that the Arrow-engines provide significant speedups over the custom C implementations.
+They don't support all features of the custom implementations yet, but if your use-case is 
+compatible with the supported options, you should get a significant speedup for free.</p>
+<p>The case with the PyArrow <code>dtype_backend</code> is a bit more complicated. Not all areas of the API are
+optimized yet. If you spend a lot of time processing your data outside I/O functions, then this might not 
+give you what you need. It will speed up your processing if your workflow spends a lot of
+time reading the data.</p>
+<h2 id="dtype_backend-in-pyarrow-native-io-readers">dtype_backend in PyArrow-native I/O readers</h2>
+<p>Some other I/O methods have an engine keyword as well. <code>read_parquet</code> is the most popular 
+example. The situation is a bit different here though. These I/O methods were already using the
+PyArrow engine by default. So the parsing is as efficient as possible. One other potential
+performance benefit is the usage of the <code>dtype_backend</code> keyword. Normally, PyArrow will return
+a PyArrow table which is then converted to a pandas DataFrame. The PyArrow dtypes are converted to
+their NumPy equivalent. Setting <code>dtype_backend="pyarrow"</code> avoids this conversion. This gives 
+a decent performance improvement and saves a lot of memory.</p>
+<p>Let's look at one pandas performance comparison. We read the Uber-Lyft taxi data from December 2022.</p>
+<pre><code class="language-python">pd.read_parquet(&quot;fhvhv_tripdata_2022-10.parquet&quot;)
+</code></pre>
+<p>We read the data with and without <code>dtype_backend="pyarrow"</code>.</p>
+<p><img alt="" src="../images/arrow_backend/pandas_read_parquet_performance.svg"></p>
+<p>We can easily see that the most time is taken up by the conversion after the reading of the
+Parquet file was finished. The function runs 3 times as fast when avoiding
+the conversion to NumPy dtypes.</p>
+<p>Dask has a specialized implementation for <code>read_parquet</code> that has some advantages tailored to
+distributed workloads compared to the pandas implementation. The common denominator is that both
+functions dispatch to PyArrow to read the parquet file. Both have in common that the data are
+converted to NumPy dtypes after successfully reading the file. We are reading
+the whole Uber-Lyft dataset, which consumes around 240GB of memory on our
+cluster.</p>
+<pre><code class="language-python">import dask.dataframe as dd
+from distributed import wait
+
+df = dd.read_parquet(
+    &quot;s3://coiled-datasets/uber-lyft-tlc/&quot;,
+    storage_options={&quot;anon&quot;: True},
+)
+df = df.persist()
+wait(df)
+</code></pre>
+<p>We read the dataset in 3 different configurations. First with the default NumPy dtypes, then with
+the PyArrow string option turned on:</p>
+<pre><code class="language-python">dask.config.set({&quot;dataframe.convert-string&quot;: True})
+</code></pre>
+<p>And lastly with <code>dtype_backend="pyarrow"</code>. Let's look at what this means performance-wise:</p>
+<p><img alt="" src="../images/arrow_backend/Dask_read_parquet_performance.svg"></p>
+<p>Similar to our pandas example, we can see that converting to NumPy dtypes takes up a huge chunk of
+our runtime. The PyArrow dtypes give us a nice performance improvement. Both PyArrow configurations
+use half of the memory that the NumPy dtypes are using.</p>
+<p>PyArrow-strings are a lot more mature than the general PyArrow <code>dtype_backend</code>. Based on the 
+performance chart we got, we get roughly the same performance improvement when using PyArrow 
+strings and NumPy dtypes for all other dtypes. If a workflow does not work well enough on PyArrow 
+dtypes yet, I'd recommend enabling PyArrow strings only.</p>
+<h2 id="conclusion">Conclusion</h2>
+<p>We have seen how we can leverage PyArrow in pandas in Dask right now. PyArrow backed string columns have the
+potential to impact most workflows in a positive way and provide a smooth user experience with
+pandas 2.0. Dask has a convenient option to globally avoid NumPy object dtype when possible, which
+makes opting into PyArrow backed strings even easier. PyArrow also provides huge speedups in other
+areas where available. The PyArrow <code>dtype_backend</code> is still pretty new and has the 
+potential to cut I/O times significantly right now. It is certainly worth exploring whether it can solve
+performance bottlenecks. There is a lot of work going on to improve support for general PyArrow
+dtypes with the potential to speed up an average workflow in the near future.</p>
+<p>There is a current proposal in pandas to start inferring strings as PyArrow backed strings by
+default starting from pandas 3.0. Additionally, it includes many more areas where leaning more
+onto PyArrow makes a lot of sense (e.g. Decimals, structured data, ...). You can read up on the
+proposal <a href="https://github.com/pandas-dev/pandas/pull/52711">here</a>.</p>
+<p>Thank you for reading. Feel free to reach out to share your thoughts and feedback 
+about PyArrow support in both libraries.</p>
+        </div>
+
+        <div class="meta">
+            <div>
+                    <a href="https://phofl.github.io/tag/pandas.html" class="tag">pandas</a>
+                    <a href="https://phofl.github.io/tag/dask.html" class="tag">dask</a>
+            </div>
+            <div>
+                <a style="font-size:14pt;color: black;">Authors: </a>
+                    <a style="font-size:14pt;color: black;">Patrick Hoefler        </a>
+            </div>
+        </div>
+    </article>
+
+
+</div>
+
+<style type="text/css">
+{
+    max-width: 700px;
+}
+
+.text_cell .prompt {
+    display: none;
+}
+
+div.cell {
+    padding: 0;
+}
+
+div.text_cell_render {
+    padding: 0;
+}
+
+div.prompt {
+    font-size: 13px;
+}
+
+div.input_prompt {
+    padding: .7em 0.2em;
+}
+
+div.output_prompt {
+    padding: .4em .2em;
+}
+
+div.input_area {
+    margin: .2em 0.4em;
+    max-width: 580px;
+}
+
+table.dataframe {
+    font-family: Arial, sans-serif;
+    font-size: 13px;
+    line-height: 20px;
+}
+
+table.dataframe th, td {
+    padding: 4px;
+    text-align: left;
+}
+
+pre code {
+    background-color: inherit;
+}</style>
+
+        </div>
+    <footer>
+      <section class="author">
+        <div class="author__link">
+          <ul>
+            <a href="https://phofl.github.io/pages/about.html" title="About"><i class="fa fa-link"></i></a>
+              <a href="https://github.com/phofl/" target="_blank" title="github">
+                <i class="fa fa-github-square"></i>
+              </a>
+              <a href="https://www.linkedin.com/in/patrick-hoefler/" target="_blank" title="linkedin">
+                <i class="fa fa-linkedin-square"></i>
+              </a>
+              <a href="mailto:patrick_hoefler@gmx.net" target="_blank" title="mail">
+                <i class="fa fa-envelope"></i>
+              </a>
+              <a href="https://phofl.github.io/feeds/all.atom.xml" target="_blank" title="Feed">
+                <i class="fa fa-rss"></i>
+              </a>
+          </ul>
+        </div>
+      </section>
+    </footer>
+
+  <!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-6N2N937CH5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-6N2N937CH5');
+</script>
+    </body>
+</html>
