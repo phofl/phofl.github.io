@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<rss version="2.0"><channel><title>Patrick Hoefler</title><link>https://phofl.github.io/</link><description></description><lastBuildDate>Thu, 17 Aug 2023 00:00:00 +0200</lastBuildDate><item><title>Deep Dive into pandas Copy-on-Write Mode - Part I)</title><link>https://phofl.github.io/cow-deep-dive-optimizations.html</link><description>&lt;p&gt;&lt;em&gt;Explaining how Copy-on-Write optimizes performance&lt;/em&gt;&lt;/p&gt;
+<rss version="2.0"><channel><title>Patrick Hoefler</title><link>https://phofl.github.io/</link><description></description><lastBuildDate>Thu, 17 Aug 2023 00:00:00 +0200</lastBuildDate><item><title>Deep Dive into pandas Copy-on-Write Mode - Part II</title><link>https://phofl.github.io/cow-deep-dive-optimizations.html</link><description>&lt;p&gt;&lt;em&gt;Explaining how Copy-on-Write optimizes performance&lt;/em&gt;&lt;/p&gt;
 &lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
 &lt;p&gt;The &lt;a href="https://medium.com/towards-data-science/deep-dive-into-pandas-copy-on-write-mode-part-i-26982e7408c6"&gt;first post&lt;/a&gt; 
 explained how the Copy-on-Write mechanism works. It highlights some ares where copies are introduced

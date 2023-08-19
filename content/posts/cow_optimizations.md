@@ -1,5 +1,5 @@
 ---
-title: Deep Dive into pandas Copy-on-Write Mode - Part I)
+title: Deep Dive into pandas Copy-on-Write Mode - Part II
 blogpost: true
 date: 2023-08-17
 slug: cow-deep-dive-optimizations
