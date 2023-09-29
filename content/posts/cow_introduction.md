@@ -2,7 +2,7 @@
 title: A solution for inconsistencies in indexing operations in pandas
 date: 2022-12-23
 slug: cow-introduction
-tags: pandas
+tags: pandas, copy-on-write
 ---
 
 _Get rid of annoying SettingWithCopyWarning messages_
