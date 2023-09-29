@@ -1,6 +1,6 @@
 ---
 title: Deep dive into pandas Copy-on-Write mode - part III
-date: 2023-06-15
+date: 2023-09-29
 slug: cow-adaptions
 tags: pandas, copy-on-write
 ---

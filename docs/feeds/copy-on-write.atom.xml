@@ -1,5 +1,125 @@
 <?xml version="1.0" encoding="utf-8"?>
-<feed xmlns="http://www.w3.org/2005/Atom"><title>Patrick Hoefler - copy-on-write</title><link href="https://phofl.github.io/" rel="alternate"></link><link href="https://phofl.github.io/feeds/copy-on-write.atom.xml" rel="self"></link><id>https://phofl.github.io/</id><updated>2023-08-17T00:00:00+02:00</updated><entry><title>Deep Dive into pandas Copy-on-Write Mode - Part II</title><link href="https://phofl.github.io/cow-deep-dive-optimizations.html" rel="alternate"></link><published>2023-08-17T00:00:00+02:00</published><updated>2023-08-17T00:00:00+02:00</updated><author><name>Patrick Hoefler</name></author><id>tag:phofl.github.io,2023-08-17:/cow-deep-dive-optimizations.html</id><summary type="html">&lt;p&gt;&lt;em&gt;Explaining how Copy-on-Write optimizes performance&lt;/em&gt;&lt;/p&gt;
+<feed xmlns="http://www.w3.org/2005/Atom"><title>Patrick Hoefler - copy-on-write</title><link href="https://phofl.github.io/" rel="alternate"></link><link href="https://phofl.github.io/feeds/copy-on-write.atom.xml" rel="self"></link><id>https://phofl.github.io/</id><updated>2023-09-29T00:00:00+02:00</updated><entry><title>Deep dive into pandas Copy-on-Write mode - part III</title><link href="https://phofl.github.io/cow-adaptions.html" rel="alternate"></link><published>2023-09-29T00:00:00+02:00</published><updated>2023-09-29T00:00:00+02:00</updated><author><name>Patrick Hoefler</name></author><id>tag:phofl.github.io,2023-09-29:/cow-adaptions.html</id><summary type="html">&lt;p&gt;&lt;em&gt;Explaining the migration path for Copy-on-Write&lt;/em&gt;&lt;/p&gt;
+&lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
+&lt;p&gt;The introduction of Copy-on-Write (CoW) is a breaking change that will have some impact on existing
+pandas-code. We will investigate how we can adapt our code to avoid errors when CoW will be
+enabled by default. This is currently planned for the pandas …&lt;/p&gt;</summary><content type="html">&lt;p&gt;&lt;em&gt;Explaining the migration path for Copy-on-Write&lt;/em&gt;&lt;/p&gt;
+&lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
+&lt;p&gt;The introduction of Copy-on-Write (CoW) is a breaking change that will have some impact on existing
+pandas-code. We will investigate how we can adapt our code to avoid errors when CoW will be
+enabled by default. This is currently planned for the pandas 3.0 release, which is scheduled for April 2024.
+&lt;a href="https://towardsdatascience.com/deep-dive-into-pandas-copy-on-write-mode-part-i-26982e7408c6"&gt;The first post&lt;/a&gt; in this series explained the behavior of Copy-on-Write 
+while &lt;a href="https://towardsdatascience.com/deep-dive-into-pandas-copy-on-write-mode-part-ii-b023432a5334"&gt;the second post&lt;/a&gt; dove into performance optimizations that are related to Copy-on-Write.&lt;/p&gt;
+&lt;p&gt;We are planning on adding a warning mode that will warn for all operations that will change
+behavior with CoW. The warning will be very noisy for users and thus has to be treated with some care.
+This post explains common cases and how you can adapt your code to avoid changes in behavior.&lt;/p&gt;
+&lt;h2 id="chained-assignment"&gt;Chained assignment&lt;/h2&gt;
+&lt;p&gt;Chained assignment is a technique where one object is updated through 2 subsequent operations.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;import pandas as pd
+
+df = pd.DataFrame({&amp;quot;x&amp;quot;: [1, 2, 3]})
+
+df[&amp;quot;x&amp;quot;][df[&amp;quot;x&amp;quot;] &amp;gt; 1] = 100
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;The first operation selects the column &lt;code&gt;"x"&lt;/code&gt; while the second operation restricts the number
+of rows. There are many different combinations of these operations (e.g. combined with &lt;code&gt;loc&lt;/code&gt; or
+&lt;code&gt;iloc&lt;/code&gt;). None of these combinations will work under CoW. Instead, they will raise a warning 
+&lt;code&gt;ChainedAssignmentError&lt;/code&gt; to remove these patterns instead of silently doing nothing.&lt;/p&gt;
+&lt;p&gt;Generally, you can use &lt;code&gt;loc&lt;/code&gt; instead:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df.loc[df[&amp;quot;x&amp;quot;] &amp;gt; 1, &amp;quot;x&amp;quot;] = 100
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;The first dimension of &lt;code&gt;loc&lt;/code&gt; always corresponds to the &lt;code&gt;row-indexer&lt;/code&gt;. This means that you are
+able to select a subset of rows. The second dimension corresponds to the &lt;code&gt;column-indexer&lt;/code&gt;, which
+enables you to select a subset of columns. &lt;/p&gt;
+&lt;p&gt;It is generally faster using &lt;code&gt;loc&lt;/code&gt; when you want to set values into a subset of rows, so this
+will clean up your code and provide a performance improvement.&lt;/p&gt;
+&lt;p&gt;This is the obvious case where CoW will have an impact. It will also impact chained inplace 
+operations:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df[&amp;quot;x&amp;quot;].replace(1, 100)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;The pattern is the same as above. The column selection is the first operation. The &lt;code&gt;replace&lt;/code&gt;
+method tries to operate on the temporary object, which will fail to update the initial object.
+You can also remove these patterns pretty easily through specifying the columns you want to
+operate on.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df = df.replace({&amp;quot;x&amp;quot;: 1}, {&amp;quot;x&amp;quot;: 100})
+&lt;/code&gt;&lt;/pre&gt;
+&lt;h2 id="patterns-to-avoid"&gt;Patterns to avoid&lt;/h2&gt;
+&lt;p&gt;&lt;a href="https://medium.com/towards-data-science/deep-dive-into-pandas-copy-on-write-mode-part-i-26982e7408c6"&gt;My previous post&lt;/a&gt; explains how the CoW mechanism works and how DataFrames share the underlying data. A
+defensiv copy will be performed if two objects share the same data while you are modifying one
+object inplace.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df2 = df.reset_index()
+df2.iloc[0, 0] = 100
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;The &lt;code&gt;reset_index&lt;/code&gt; operation will create a view of the underlying data. The result is assigned to 
+a new variable &lt;code&gt;df2&lt;/code&gt;, this means that two objects share the same data. This holds true until
+&lt;code&gt;df&lt;/code&gt; is garbage collected. The &lt;code&gt;setitem&lt;/code&gt; operation
+will thus trigger a copy. This is completely unnecessary if you don't need the initial object 
+&lt;code&gt;df&lt;/code&gt; anymore. Simply reassigning to the same variable will invalidate the reference that is
+held by the object.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df = df.reset_index()
+df.iloc[0, 0] = 100
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Summarizing, creating multiple references in the same method keeps unnecessary references alive.&lt;/p&gt;
+&lt;p&gt;Temporary references that are created when chaining different methods together are fine.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df = df.reset_index().drop(...)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;This will only keep one reference alive.&lt;/p&gt;
+&lt;h2 id="accessing-the-underlying-numpy-array"&gt;Accessing the underlying NumPy array&lt;/h2&gt;
+&lt;p&gt;pandas currently gives us access to the underlying NumPy array through &lt;code&gt;to_numpy&lt;/code&gt; or &lt;code&gt;.values&lt;/code&gt;.
+The returned array is a copy, if your DataFrame consists of different dtypes, e.g.:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df = pd.DataFrame({&amp;quot;a&amp;quot;: [1, 2], &amp;quot;b&amp;quot;: [1.5, 2.5]})
+df.to_numpy()
+
+[[1.  1.5]
+ [2.  2.5]]
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;The DataFrame is backed by two arrays which have to be combined into one. This triggers the copy.&lt;/p&gt;
+&lt;p&gt;The other case is a DataFrame that is only backed by a single NumPy array, e.g.:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df = pd.DataFrame({&amp;quot;a&amp;quot;: [1, 2], &amp;quot;b&amp;quot;: [3, 4]})
+df.to_numpy()
+
+[[1 3]
+ [2 4]]
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;We can directly access the array and get a view instead of a copy. This is much faster than copying
+all data. We can now operate on the NumPy array and potentially modify it inplace, which will also
+update the DataFrame and potentially all other DataFrames that share data. This becomes much more
+complicated with Copy-on-Write, since we removed many defensive copies. Many more DataFrames will 
+now share memory with each other.&lt;/p&gt;
+&lt;p&gt;&lt;code&gt;to_numpy&lt;/code&gt; and &lt;code&gt;.values&lt;/code&gt; will return a read-only array because of this. This means that the
+resulting array is not writeable.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;df = pd.DataFrame({&amp;quot;a&amp;quot;: [1, 2], &amp;quot;b&amp;quot;: [3, 4]})
+arr = df.to_numpy()
+
+arr[0, 0] = 1
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;This will trigger a &lt;code&gt;ValueError&lt;/code&gt;:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;ValueError: assignment destination is read-only
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;You can avoid this in two different ways:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Trigger a copy manually if you want to avoid updating DataFrames that share memory with your array.&lt;/li&gt;
+&lt;li&gt;Make the array writeable. This is a more performant solution but circumvents Copy-on-Write rules, so
+  it should be used with caution.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;arr.flags.writeable = True
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;There are cases where this is not possible. One common occurrence is, if you are accessing a single
+column which was backed by PyArrow:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;ser = pd.Series([1, 2], dtype=&amp;quot;int64[pyarrow]&amp;quot;)
+arr = ser.to_numpy()
+arr.flags.writeable = True
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;This returns a &lt;code&gt;ValueError&lt;/code&gt;:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;ValueError: cannot set WRITEABLE flag to True of this array
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Arrow arrays are immutable, hence it is not possible to make the NumPy array writeable. The conversion
+from Arrow to NumPy is zero-copy in this case.&lt;/p&gt;
+&lt;h2 id="conclusion"&gt;Conclusion&lt;/h2&gt;
+&lt;p&gt;We've looked at the most invasive Copy-on-Write related changes. These changes will become the
+default behavior in pandas 3.0. We've also investigated how we can adapt our code to avoid breaking
+our code when Copy-on-Write is enabled. The upgrade process should be pretty smooth if you can avoid
+these patterns.&lt;/p&gt;</content><category term="posts"></category><category term="pandas"></category><category term="copy-on-write"></category></entry><entry><title>Deep Dive into pandas Copy-on-Write Mode - Part II</title><link href="https://phofl.github.io/cow-deep-dive-optimizations.html" rel="alternate"></link><published>2023-08-17T00:00:00+02:00</published><updated>2023-08-17T00:00:00+02:00</updated><author><name>Patrick Hoefler</name></author><id>tag:phofl.github.io,2023-08-17:/cow-deep-dive-optimizations.html</id><summary type="html">&lt;p&gt;&lt;em&gt;Explaining how Copy-on-Write optimizes performance&lt;/em&gt;&lt;/p&gt;
 &lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
 &lt;p&gt;The &lt;a href="https://medium.com/towards-data-science/deep-dive-into-pandas-copy-on-write-mode-part-i-26982e7408c6"&gt;first post&lt;/a&gt; 
 explained how the Copy-on-Write mechanism works. It highlights some ares where copies are introduced
@@ -319,127 +439,7 @@ enabling more consistent behavior in pandas.&lt;/p&gt;
 &lt;p&gt;The next part in this series will explain techniques that are used to make this mechanism more
 efficient.&lt;/p&gt;
 &lt;p&gt;Thank you for reading. Feel free to reach out to share your thoughts and feedback 
-about Copy-on-Write.&lt;/p&gt;</content><category term="posts"></category><category term="pandas"></category><category term="copy-on-write"></category><category term="performance"></category></entry><entry><title>Deep dive into pandas Copy-on-Write mode - part III</title><link href="https://phofl.github.io/cow-adaptions.html" rel="alternate"></link><published>2023-06-15T00:00:00+02:00</published><updated>2023-06-15T00:00:00+02:00</updated><author><name>Patrick Hoefler</name></author><id>tag:phofl.github.io,2023-06-15:/cow-adaptions.html</id><summary type="html">&lt;p&gt;&lt;em&gt;Explaining the migration path for Copy-on-Write&lt;/em&gt;&lt;/p&gt;
-&lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
-&lt;p&gt;The introduction of Copy-on-Write (CoW) is a breaking change that will have some impact on existing
-pandas-code. We will investigate how we can adapt our code to avoid errors when CoW will be
-enabled by default. This is currently planned for the pandas …&lt;/p&gt;</summary><content type="html">&lt;p&gt;&lt;em&gt;Explaining the migration path for Copy-on-Write&lt;/em&gt;&lt;/p&gt;
-&lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
-&lt;p&gt;The introduction of Copy-on-Write (CoW) is a breaking change that will have some impact on existing
-pandas-code. We will investigate how we can adapt our code to avoid errors when CoW will be
-enabled by default. This is currently planned for the pandas 3.0 release, which is scheduled for April 2024.
-&lt;a href="https://towardsdatascience.com/deep-dive-into-pandas-copy-on-write-mode-part-i-26982e7408c6"&gt;The first post&lt;/a&gt; in this series explained the behavior of Copy-on-Write 
-while &lt;a href="https://towardsdatascience.com/deep-dive-into-pandas-copy-on-write-mode-part-ii-b023432a5334"&gt;the second post&lt;/a&gt; dove into performance optimizations that are related to Copy-on-Write.&lt;/p&gt;
-&lt;p&gt;We are planning on adding a warning mode that will warn for all operations that will change
-behavior with CoW. The warning will be very noisy for users and thus has to be treated with some care.
-This post explains common cases and how you can adapt your code to avoid changes in behavior.&lt;/p&gt;
-&lt;h2 id="chained-assignment"&gt;Chained assignment&lt;/h2&gt;
-&lt;p&gt;Chained assignment is a technique where one object is updated through 2 subsequent operations.&lt;/p&gt;
-&lt;pre&gt;&lt;code class="language-python"&gt;import pandas as pd
-
-df = pd.DataFrame({&amp;quot;x&amp;quot;: [1, 2, 3]})
-
-df[&amp;quot;x&amp;quot;][df[&amp;quot;x&amp;quot;] &amp;gt; 1] = 100
-&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;The first operation selects the column &lt;code&gt;"x"&lt;/code&gt; while the second operation restricts the number
-of rows. There are many different combinations of these operations (e.g. combined with &lt;code&gt;loc&lt;/code&gt; or
-&lt;code&gt;iloc&lt;/code&gt;). None of these combinations will work under CoW. Instead, they will raise a warning 
-&lt;code&gt;ChainedAssignmentError&lt;/code&gt; to remove these patterns instead of silently doing nothing.&lt;/p&gt;
-&lt;p&gt;Generally, you can use &lt;code&gt;loc&lt;/code&gt; instead:&lt;/p&gt;
-&lt;pre&gt;&lt;code class="language-python"&gt;df.loc[df[&amp;quot;x&amp;quot;] &amp;gt; 1, &amp;quot;x&amp;quot;] = 100
-&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;The first dimension of &lt;code&gt;loc&lt;/code&gt; always corresponds to the &lt;code&gt;row-indexer&lt;/code&gt;. This means that you are
-able to select a subset of rows. The second dimension corresponds to the &lt;code&gt;column-indexer&lt;/code&gt;, which
-enables you to select a subset of columns. &lt;/p&gt;
-&lt;p&gt;It is generally faster using &lt;code&gt;loc&lt;/code&gt; when you want to set values into a subset of rows, so this
-will clean up your code and provide a performance improvement.&lt;/p&gt;
-&lt;p&gt;This is the obvious case where CoW will have an impact. It will also impact chained inplace 
-operations:&lt;/p&gt;
-&lt;pre&gt;&lt;code class="language-python"&gt;df[&amp;quot;x&amp;quot;].replace(1, 100)
-&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;The pattern is the same as above. The column selection is the first operation. The &lt;code&gt;replace&lt;/code&gt;
-method tries to operate on the temporary object, which will fail to update the initial object.
-You can also remove these patterns pretty easily through specifying the columns you want to
-operate on.&lt;/p&gt;
-&lt;pre&gt;&lt;code class="language-python"&gt;df = df.replace({&amp;quot;x&amp;quot;: 1}, {&amp;quot;x&amp;quot;: 100})
-&lt;/code&gt;&lt;/pre&gt;
-&lt;h2 id="patterns-to-avoid"&gt;Patterns to avoid&lt;/h2&gt;
-&lt;p&gt;&lt;a href="https://medium.com/towards-data-science/deep-dive-into-pandas-copy-on-write-mode-part-i-26982e7408c6"&gt;My previous post&lt;/a&gt; explains how the CoW mechanism works and how DataFrames share the underlying data. A
-defensiv copy will be performed if two objects share the same data while you are modifying one
-object inplace.&lt;/p&gt;
-&lt;pre&gt;&lt;code class="language-python"&gt;df2 = df.reset_index()
-df2.iloc[0, 0] = 100
-&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;The &lt;code&gt;reset_index&lt;/code&gt; operation will create a view of the underlying data. The result is assigned to 
-a new variable &lt;code&gt;df2&lt;/code&gt;, this means that two objects share the same data. This holds true until
-&lt;code&gt;df&lt;/code&gt; is garbage collected. The &lt;code&gt;setitem&lt;/code&gt; operation
-will thus trigger a copy. This is completely unnecessary if you don't need the initial object 
-&lt;code&gt;df&lt;/code&gt; anymore. Simply reassigning to the same variable will invalidate the reference that is
-held by the object.&lt;/p&gt;
-&lt;pre&gt;&lt;code class="language-python"&gt;df = df.reset_index()
-df.iloc[0, 0] = 100
-&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Summarizing, creating multiple references in the same method keeps unnecessary references alive.&lt;/p&gt;
-&lt;p&gt;Temporary references that are created when chaining different methods together are fine.&lt;/p&gt;
-&lt;pre&gt;&lt;code class="language-python"&gt;df = df.reset_index().drop(...)
-&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;This will only keep one reference alive.&lt;/p&gt;
-&lt;h2 id="accessing-the-underlying-numpy-array"&gt;Accessing the underlying NumPy array&lt;/h2&gt;
-&lt;p&gt;pandas currently gives us access to the underlying NumPy array through &lt;code&gt;to_numpy&lt;/code&gt; or &lt;code&gt;.values&lt;/code&gt;.
-The returned array is a copy, if your DataFrame consists of different dtypes, e.g.:&lt;/p&gt;
-&lt;pre&gt;&lt;code class="language-python"&gt;df = pd.DataFrame({&amp;quot;a&amp;quot;: [1, 2], &amp;quot;b&amp;quot;: [1.5, 2.5]})
-df.to_numpy()
-
-[[1.  1.5]
- [2.  2.5]]
-&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;The DataFrame is backed by two arrays which have to be combined into one. This triggers the copy.&lt;/p&gt;
-&lt;p&gt;The other case is a DataFrame that is only backed by a single NumPy array, e.g.:&lt;/p&gt;
-&lt;pre&gt;&lt;code class="language-python"&gt;df = pd.DataFrame({&amp;quot;a&amp;quot;: [1, 2], &amp;quot;b&amp;quot;: [3, 4]})
-df.to_numpy()
-
-[[1 3]
- [2 4]]
-&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;We can directly access the array and get a view instead of a copy. This is much faster than copying
-all data. We can now operate on the NumPy array and potentially modify it inplace, which will also
-update the DataFrame and potentially all other DataFrames that share data. This becomes much more
-complicated with Copy-on-Write, since we removed many defensive copies. Many more DataFrames will 
-now share memory with each other.&lt;/p&gt;
-&lt;p&gt;&lt;code&gt;to_numpy&lt;/code&gt; and &lt;code&gt;.values&lt;/code&gt; will return a read-only array because of this. This means that the
-resulting array is not writeable.&lt;/p&gt;
-&lt;pre&gt;&lt;code class="language-python"&gt;df = pd.DataFrame({&amp;quot;a&amp;quot;: [1, 2], &amp;quot;b&amp;quot;: [3, 4]})
-arr = df.to_numpy()
-
-arr[0, 0] = 1
-&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;This will trigger a &lt;code&gt;ValueError&lt;/code&gt;:&lt;/p&gt;
-&lt;pre&gt;&lt;code class="language-python"&gt;ValueError: assignment destination is read-only
-&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;You can avoid this in two different ways:&lt;/p&gt;
-&lt;ul&gt;
-&lt;li&gt;Trigger a copy manually if you want to avoid updating DataFrames that share memory with your array.&lt;/li&gt;
-&lt;li&gt;Make the array writeable. This is a more performant solution but circumvents Copy-on-Write rules, so
-  it should be used with caution.&lt;/li&gt;
-&lt;/ul&gt;
-&lt;pre&gt;&lt;code class="language-python"&gt;arr.flags.writeable = True
-&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;There are cases where this is not possible. One common occurrence is, if you are accessing a single
-column which was backed by PyArrow:&lt;/p&gt;
-&lt;pre&gt;&lt;code class="language-python"&gt;ser = pd.Series([1, 2], dtype=&amp;quot;int64[pyarrow]&amp;quot;)
-arr = ser.to_numpy()
-arr.flags.writeable = True
-&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;This returns a &lt;code&gt;ValueError&lt;/code&gt;:&lt;/p&gt;
-&lt;pre&gt;&lt;code class="language-python"&gt;ValueError: cannot set WRITEABLE flag to True of this array
-&lt;/code&gt;&lt;/pre&gt;
-&lt;p&gt;Arrow arrays are immutable, hence it is not possible to make the NumPy array writeable. The conversion
-from Arrow to NumPy is zero-copy in this case.&lt;/p&gt;
-&lt;h2 id="conclusion"&gt;Conclusion&lt;/h2&gt;
-&lt;p&gt;We've looked at the most invasive Copy-on-Write related changes. These changes will become the
-default behavior in pandas 3.0. We've also investigated how we can adapt our code to avoid breaking
-our code when Copy-on-Write is enabled. The upgrade process should be pretty smooth if you can avoid
-these patterns.&lt;/p&gt;</content><category term="posts"></category><category term="pandas"></category><category term="copy-on-write"></category></entry><entry><title>A solution for inconsistencies in indexing operations in pandas</title><link href="https://phofl.github.io/cow-introduction.html" rel="alternate"></link><published>2022-12-23T00:00:00+01:00</published><updated>2022-12-23T00:00:00+01:00</updated><author><name>Patrick Hoefler</name></author><id>tag:phofl.github.io,2022-12-23:/cow-introduction.html</id><summary type="html">&lt;p&gt;&lt;em&gt;Get rid of annoying SettingWithCopyWarning messages&lt;/em&gt;&lt;/p&gt;
+about Copy-on-Write.&lt;/p&gt;</content><category term="posts"></category><category term="pandas"></category><category term="copy-on-write"></category><category term="performance"></category></entry><entry><title>A solution for inconsistencies in indexing operations in pandas</title><link href="https://phofl.github.io/cow-introduction.html" rel="alternate"></link><published>2022-12-23T00:00:00+01:00</published><updated>2022-12-23T00:00:00+01:00</updated><author><name>Patrick Hoefler</name></author><id>tag:phofl.github.io,2022-12-23:/cow-introduction.html</id><summary type="html">&lt;p&gt;&lt;em&gt;Get rid of annoying SettingWithCopyWarning messages&lt;/em&gt;&lt;/p&gt;
 &lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
 &lt;p&gt;Indexing operations in pandas are quite flexible and thus, have many cases that can behave quite 
 different and therefore produce unexpected results. Additionally, it is hard to predict when a 
