@@ -73,7 +73,7 @@ and [how it works](https://towardsdatascience.com/deep-dive-into-pandas-copy-on-
 
 We’ve seen that Copy-on-Write can improve the performance of real-world workflows by over 50%.
 
-## Deprecating silent upcasting in setiten-like operations
+## Deprecating silent upcasting in setitem-like operations
 
 Historically, pandas would silently change the dtype of one of your columns if you set an incompatible value into it. Let’s look at an example:
 

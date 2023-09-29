@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom"><title>Patrick Hoefler - scikit-learn</title><link href="https://phofl.github.io/" rel="alternate"></link><link href="https://phofl.github.io/feeds/scikit-learn.atom.xml" rel="self"></link><id>https://phofl.github.io/</id><updated>2023-09-01T00:00:00+02:00</updated><entry><title>Reduce training time for CPU intensive models with scikit-learn and Coiled Functions</title><link href="https://phofl.github.io/coiled-functions-sklearn.html" rel="alternate"></link><published>2023-09-01T00:00:00+02:00</published><updated>2023-09-01T00:00:00+02:00</updated><author><name>Patrick Hoefler</name></author><id>tag:phofl.github.io,2023-09-01:/coiled-functions-sklearn.html</id><summary type="html">&lt;p&gt;&lt;img alt="" src="../images/coiled_run/coiled-functions-scikit-learn-snippet.png"&gt;&lt;/p&gt;
+&lt;p&gt;You can use &lt;a href="https://docs.coiled.io/user_guide/labs/run.html"&gt;Coiled Run&lt;/a&gt;
+and &lt;a href="https://docs.coiled.io/user_guide/labs/functions.html"&gt;Coiled Functions&lt;/a&gt;
+for easily running scripts and functions on a VM in the cloud.&lt;/p&gt;
+&lt;p&gt;In this post we'll use Coiled Functions to train a RandomForestClassifer on a cloud-hosted
+machine that has enough cores to speed up our training process. The model parallelizes very well …&lt;/p&gt;</summary><content type="html">&lt;p&gt;&lt;img alt="" src="../images/coiled_run/coiled-functions-scikit-learn-snippet.png"&gt;&lt;/p&gt;
+&lt;p&gt;You can use &lt;a href="https://docs.coiled.io/user_guide/labs/run.html"&gt;Coiled Run&lt;/a&gt;
+and &lt;a href="https://docs.coiled.io/user_guide/labs/functions.html"&gt;Coiled Functions&lt;/a&gt;
+for easily running scripts and functions on a VM in the cloud.&lt;/p&gt;
+&lt;p&gt;In this post we'll use Coiled Functions to train a RandomForestClassifer on a cloud-hosted
+machine that has enough cores to speed up our training process. The model parallelizes very well,
+which means that training time on my local machine is only bound by the number of cores available.
+Offloading this step onto a machine with 128 cores will save a lot of time during the training
+process.&lt;/p&gt;
+&lt;h2 id="getting-started"&gt;Getting started&lt;/h2&gt;
+&lt;p&gt;We will use random generated data for the purpose of this blog post. We will first train the model
+locally, before we use Coiled Funtions to offload the calculation to AWS.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;from sklearn.ensemble import RandomForestClassifier
+from sklearn.datasets import make_classification
+
+def train():
+    X, y = make_classification(n_samples=2_000_000, n_features=30, random_state=0, shuffle=False)
+    clf = RandomForestClassifier(random_state=0, n_jobs=-1)
+    clf.fit(X, y)
+    return clf
+
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;We use 2 million samples and 30 features. This model takes around 12 minutes on my MacBook Air with
+8 cores. The runtime can grow increasingly large if our dataset increases in size. We can speed up
+that process through using a more powerful VM.&lt;/p&gt;
+&lt;h2 id="using-coiled-functions-to-train-the-model-on-a-large-vm"&gt;Using &lt;code&gt;coiled functions&lt;/code&gt; to train the model on a large VM&lt;/h2&gt;
+&lt;p&gt;&lt;a href="https://docs.coiled.io/user_guide/labs/run.html"&gt;Coiled Functions&lt;/a&gt; come into the equation since we need access to a machine with a lot of cores. 
+Coiled can connect to AWS or GCP and thus, use all resources that are available there.
+Let's train the same model as above, but this time on an EC2 instance with 128 cores.&lt;/p&gt;
+&lt;p&gt;Adding a &lt;code&gt;@coiled.function&lt;/code&gt; decorator to the function that executes our training step is the only
+modification we have to do. The decorator will tell Coiled that it should spin up a large VM on 
+AWS and train the model there, and then return the trained model to our local machine.&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;import coiled
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.datasets import make_classification
+
+@coiled.function(
+    vm_type=&amp;quot;c6i.32xlarge&amp;quot;, # 128 cores, compute optimized
+    keepalive=&amp;quot;5 minutes&amp;quot;,  # keep alive to train more models if necessary
+)
+def train():
+    X, y = make_classification(n_samples=2_000_000, n_features=30, random_state=0, shuffle=False)
+    clf = RandomForestClassifier(random_state=0, n_jobs=-1)
+    clf.fit(X, y)
+    return clf
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Let's execute the training step and return the model back to our local machine:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;result = train()
+
+RandomForestClassifier(n_jobs=-1, random_state=0)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Let's take a look at the CPU utilization during the training step:&lt;/p&gt;
+&lt;p&gt;&lt;img alt="" src="../images/coiled_run/coiled-functions-scikit-learn.png"&gt;&lt;/p&gt;
+&lt;p&gt;There is no need to adjust the other functions. Coiled will run our function on a VM in the cloud with
+enough resources.&lt;/p&gt;
+&lt;p&gt;Let's take a brief look at the arguments to &lt;code&gt;coiled.function()&lt;/code&gt;:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;vm_type&lt;/code&gt;: This specifies the type of &lt;a href="https://aws.amazon.com/ec2/instance-types/"&gt;EC2 instance&lt;/a&gt;.
+  We are looking for an instance that as many cores as possible to speed up our training step.&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;keepalive&lt;/code&gt;: Keeps the VM alive so that we can run multiple queries against the data in memory.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;&lt;code&gt;coiled.function()&lt;/code&gt; will now start a VM in AWS with the specified EC2 instance. The VM is normally up
+and running in 1-2 minutes. Coiled will scan our local environment and replicate the same 
+dependencies on this machine. We don't have to specify an explicit Python environment. Inputs of 
+your function are serialized and sent to the VM
+as well. Coiled will return our results back to our local machine.&lt;/p&gt;
+&lt;p&gt;Coiled would normally shut down the VM immediately after the Python interpreter finishes. This is mostly to
+reduce costs. We specified
+&lt;code&gt;keepalive="5 minutes"&lt;/code&gt; to keep the VM alive for a few minutes after our Python interpreter
+finished. This ensures that new local runs can connect to the same VM avoiding
+the boot time of up to 2 minutes; we call this a warm start.&lt;/p&gt;
+&lt;h2 id="conclusion"&gt;Conclusion&lt;/h2&gt;
+&lt;p&gt;&lt;code&gt;coiled functions&lt;/code&gt; enables you to run queries on a machine with as many cores as you need.
+This grants you access to computational resources that can be hard to replicate locally.&lt;/p&gt;
+&lt;p&gt;For more resources:
+- Check out the &lt;a href="https://docs.coiled.io/user_guide/labs/functions.html"&gt;documentation&lt;/a&gt;
+- Use Coiled functions to train a &lt;a href="https://medium.com/coiled-hq/how-to-train-a-neural-network-on-a-gpu-in-the-cloud-with-coiled-functions-40fa9aca723b"&gt;neural net on a powerful GPU&lt;/a&gt;
+- Process &lt;a href="https://medium.com/coiled-hq/process-hundreds-of-gb-of-data-with-coiled-functions-and-duckdb-4b7df2f84d2f"&gt;process hundreds of GBs of data with DuckDB&lt;/a&gt; using Coiled functions&lt;/p&gt;</content><category term="posts"></category><category term="coiled"></category><category term="jobs"></category><category term="scikit-learn"></category></entry></feed>

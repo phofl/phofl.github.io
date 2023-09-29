@@ -45,7 +45,7 @@ I wrote a series of blog posts explaining
 &lt;a href="https://towardsdatascience.com/a-solution-for-inconsistencies-in-indexing-operations-in-pandas-b76e10719744"&gt;what Copy-on-Write is&lt;/a&gt; 
 and &lt;a href="https://towardsdatascience.com/deep-dive-into-pandas-copy-on-write-mode-part-i-26982e7408c6"&gt;how it works&lt;/a&gt;.&lt;/p&gt;
 &lt;p&gt;We’ve seen that Copy-on-Write can improve the performance of real-world workflows by over 50%.&lt;/p&gt;
-&lt;h2 id="deprecating-silent-upcasting-in-setiten-like-operations"&gt;Deprecating silent upcasting in setiten-like operations&lt;/h2&gt;
+&lt;h2 id="deprecating-silent-upcasting-in-setitem-like-operations"&gt;Deprecating silent upcasting in setitem-like operations&lt;/h2&gt;
 &lt;p&gt;Historically, pandas would silently change the dtype of one of your columns if you set an incompatible value into it. Let’s look at an example:&lt;/p&gt;
 &lt;pre&gt;&lt;code class="language-python"&gt;ser = pd.Series([1, 2, 3])
 

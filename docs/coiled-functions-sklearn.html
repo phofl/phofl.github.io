@@ -6,7 +6,7 @@
         <meta name="author" content="Patrick Hoefler">
         <meta name="description" content="">
         <meta name="viewport" content="width=device-width">
-        <title>Patrick Hoefler - posts category | Patrick Hoefler</title>
+        <title>Reduce training time for CPU intensive models with scikit-learn and Coiled Functions | Patrick Hoefler</title>
 
 	<link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
 	<link rel="icon" href="/favicon.ico" type="image/x-icon">
@@ -406,317 +406,158 @@ article .meta a.comments_btn:hover {
         </header>
 
         <div id="wrap">
-<div class="container index">
+<div class="container post">
+    <article>
+        <header>
+            <h1>Reduce training time for CPU intensive models with scikit-learn and Coiled Functions</h1>
+            <time datetime="article.date.isoformat()" pubdate>Fri 01 September 2023</time>
+        </header>
 
-  <article>
-    <header>
-      <h2><a href="https://phofl.github.io/pandas-whatsnew-21.html">What's new in pandas 2.1</a></h2>
-      <time datetime="" title="2023-09-07T00:00:00+02:00" pubdate>Thu 07 September 2023</time>
-    </header>
-
-    <div class="article_content">
-      <p><em>The most interesting things about the new release</em></p>
-<p>pandas 2.1 was released on August 30th 2023. Let’s take a look at the things this release introduces 
-and how it will help us improving our pandas workloads. It includes a bunch of improvements and also a set of new …</p>
-    </div>
-
-    <div class="meta">
-      <div>
-        <a href="https://phofl.github.io/pandas-whatsnew-21.html" class="read_more">Read more &#8594;</a>
-      </div>
-
-      <div>
-            <a href="https://phofl.github.io/tag/pandas.html" class="tag">pandas</a>
-      </div>
-
-    </div>
-
-  </article>
-  <div class="separator"></div>
-  <article>
-    <header>
-      <h2><a href="https://phofl.github.io/coiled-functions-sklearn.html">Reduce training time for CPU intensive models with scikit-learn and Coiled Functions</a></h2>
-      <time datetime="" title="2023-09-01T00:00:00+02:00" pubdate>Fri 01 September 2023</time>
-    </header>
-
-    <div class="article_content">
-      <p><img alt="" src="../images/coiled_run/coiled-functions-scikit-learn-snippet.png"></p>
+        <div class="article_content">
+            <p><img alt="" src="../images/coiled_run/coiled-functions-scikit-learn-snippet.png"></p>
 <p>You can use <a href="https://docs.coiled.io/user_guide/labs/run.html">Coiled Run</a>
 and <a href="https://docs.coiled.io/user_guide/labs/functions.html">Coiled Functions</a>
 for easily running scripts and functions on a VM in the cloud.</p>
 <p>In this post we'll use Coiled Functions to train a RandomForestClassifer on a cloud-hosted
-machine that has enough cores to speed up our training process. The model parallelizes very well …</p>
-    </div>
-
-    <div class="meta">
-      <div>
-        <a href="https://phofl.github.io/coiled-functions-sklearn.html" class="read_more">Read more &#8594;</a>
-      </div>
-
-      <div>
-            <a href="https://phofl.github.io/tag/coiled.html" class="tag">coiled</a>
-            <a href="https://phofl.github.io/tag/jobs.html" class="tag">jobs</a>
-            <a href="https://phofl.github.io/tag/scikit-learn.html" class="tag">scikit-learn</a>
-      </div>
-
-    </div>
-
-  </article>
-  <div class="separator"></div>
-  <article>
-    <header>
-      <h2><a href="https://phofl.github.io/cow-deep-dive-optimizations.html">Deep Dive into pandas Copy-on-Write Mode - Part II</a></h2>
-      <time datetime="" title="2023-08-17T00:00:00+02:00" pubdate>Thu 17 August 2023</time>
-    </header>
-
-    <div class="article_content">
-      <p><em>Explaining how Copy-on-Write optimizes performance</em></p>
-<h2 id="introduction">Introduction</h2>
-<p>The <a href="https://medium.com/towards-data-science/deep-dive-into-pandas-copy-on-write-mode-part-i-26982e7408c6">first post</a> 
-explained how the Copy-on-Write mechanism works. It highlights some ares where copies are introduced
-into the workflow. This post will focus
-on optimizations that ensure that this won't slow the average workflow down.</p>
-<p>We utilize a technique that pandas internals use …</p>
-    </div>
-
-    <div class="meta">
-      <div>
-        <a href="https://phofl.github.io/cow-deep-dive-optimizations.html" class="read_more">Read more &#8594;</a>
-      </div>
-
-      <div>
-            <a href="https://phofl.github.io/tag/pandas.html" class="tag">pandas</a>
-            <a href="https://phofl.github.io/tag/copy-on-write.html" class="tag">copy-on-write</a>
-            <a href="https://phofl.github.io/tag/performance.html" class="tag">performance</a>
-      </div>
-
-    </div>
-
-  </article>
-  <div class="separator"></div>
-  <article>
-    <header>
-      <h2><a href="https://phofl.github.io/cow-deep-dive.html">Deep Dive into pandas Copy-on-Write Mode - Part I</a></h2>
-      <time datetime="" title="2023-08-09T00:00:00+02:00" pubdate>Wed 09 August 2023</time>
-    </header>
-
-    <div class="article_content">
-      <p><em>Explaining how Copy-on-Write works internally</em></p>
-<h2 id="introduction">Introduction</h2>
-<p><a href="https://medium.com/gitconnected/welcoming-pandas-2-0-194094e4275b">pandas 2.0</a> was released in 
-early April and brought many improvements to the new Copy-on-Write (CoW)
-mode. The feature is expected to become the default in pandas 3.0, which is scheduled for
-April 2024 at the moment. There are no plans for …</p>
-    </div>
-
-    <div class="meta">
-      <div>
-        <a href="https://phofl.github.io/cow-deep-dive.html" class="read_more">Read more &#8594;</a>
-      </div>
-
-      <div>
-            <a href="https://phofl.github.io/tag/pandas.html" class="tag">pandas</a>
-            <a href="https://phofl.github.io/tag/copy-on-write.html" class="tag">copy-on-write</a>
-            <a href="https://phofl.github.io/tag/performance.html" class="tag">performance</a>
-      </div>
-
-    </div>
-
-  </article>
-  <div class="separator"></div>
-  <article>
-    <header>
-      <h2><a href="https://phofl.github.io/coiled-functions-duckdb.html">Process hundreds of GB of data with Coiled Functions and DuckDB</a></h2>
-      <time datetime="" title="2023-08-07T00:00:00+02:00" pubdate>Mon 07 August 2023</time>
-    </header>
-
-    <div class="article_content">
-      <p><img alt="" src="../images/duckdb-coiled-functions.png"></p>
-<p>We recently pushed out two new and experimental features <a href="https://docs.coiled.io/user_guide/labs/jobs.html">Coiled Jobs</a>
-and <a href="https://docs.coiled.io/user_guide/labs/run.html">Coiled Functions</a>
-for easily running scripts and functions in the cloud.</p>
-<p>In this post we'll use Coiled Functions to process the 150 GB <a href="https://www.nyc.gov/site/tlc/about/tlc-trip-record-data.page">Uber-Lyft dataset</a> 
-on a single machine with <a href="https://duckdb.org">DuckDB</a>.</p>
+machine that has enough cores to speed up our training process. The model parallelizes very well,
+which means that training time on my local machine is only bound by the number of cores available.
+Offloading this step onto a machine with 128 cores will save a lot of time during the training
+process.</p>
 <h2 id="getting-started">Getting started</h2>
-<p>We start with creating the …</p>
-    </div>
+<p>We will use random generated data for the purpose of this blog post. We will first train the model
+locally, before we use Coiled Funtions to offload the calculation to AWS.</p>
+<pre><code class="language-python">from sklearn.ensemble import RandomForestClassifier
+from sklearn.datasets import make_classification
 
-    <div class="meta">
-      <div>
-        <a href="https://phofl.github.io/coiled-functions-duckdb.html" class="read_more">Read more &#8594;</a>
-      </div>
+def train():
+    X, y = make_classification(n_samples=2_000_000, n_features=30, random_state=0, shuffle=False)
+    clf = RandomForestClassifier(random_state=0, n_jobs=-1)
+    clf.fit(X, y)
+    return clf
 
-      <div>
-            <a href="https://phofl.github.io/tag/coiled.html" class="tag">coiled</a>
-            <a href="https://phofl.github.io/tag/jobs.html" class="tag">jobs</a>
-            <a href="https://phofl.github.io/tag/duckdb.html" class="tag">duckdb</a>
-      </div>
+</code></pre>
+<p>We use 2 million samples and 30 features. This model takes around 12 minutes on my MacBook Air with
+8 cores. The runtime can grow increasingly large if our dataset increases in size. We can speed up
+that process through using a more powerful VM.</p>
+<h2 id="using-coiled-functions-to-train-the-model-on-a-large-vm">Using <code>coiled functions</code> to train the model on a large VM</h2>
+<p><a href="https://docs.coiled.io/user_guide/labs/run.html">Coiled Functions</a> come into the equation since we need access to a machine with a lot of cores. 
+Coiled can connect to AWS or GCP and thus, use all resources that are available there.
+Let's train the same model as above, but this time on an EC2 instance with 128 cores.</p>
+<p>Adding a <code>@coiled.function</code> decorator to the function that executes our training step is the only
+modification we have to do. The decorator will tell Coiled that it should spin up a large VM on 
+AWS and train the model there, and then return the trained model to our local machine.</p>
+<pre><code class="language-python">import coiled
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.datasets import make_classification
 
-    </div>
+@coiled.function(
+    vm_type=&quot;c6i.32xlarge&quot;, # 128 cores, compute optimized
+    keepalive=&quot;5 minutes&quot;,  # keep alive to train more models if necessary
+)
+def train():
+    X, y = make_classification(n_samples=2_000_000, n_features=30, random_state=0, shuffle=False)
+    clf = RandomForestClassifier(random_state=0, n_jobs=-1)
+    clf.fit(X, y)
+    return clf
+</code></pre>
+<p>Let's execute the training step and return the model back to our local machine:</p>
+<pre><code class="language-python">result = train()
 
-  </article>
-  <div class="separator"></div>
-  <article>
-    <header>
-      <h2><a href="https://phofl.github.io/high-level-query-optimization-in-dask.html">High Level Query Optimization in Dask</a></h2>
-      <time datetime="" title="2023-08-04T00:00:00+02:00" pubdate>Fri 04 August 2023</time>
-    </header>
-
-    <div class="article_content">
-      <p><img alt="" src="../images/dask-expr/dask-expr-introduction-title.png"></p>
-<h2 id="introduction">Introduction</h2>
-<p>Dask DataFrame doesn't currently optimize your code for you (like Spark or a SQL database would). 
-This means that users waste a lot of computation. Let's look at a common example
-which looks ok at first glance, but is actually pretty inefficient.</p>
-<pre><code class="language-python">import dask.dataframe as dd
-
-df = dd …</code></pre>
-    </div>
-
-    <div class="meta">
-      <div>
-        <a href="https://phofl.github.io/high-level-query-optimization-in-dask.html" class="read_more">Read more &#8594;</a>
-      </div>
-
-      <div>
-            <a href="https://phofl.github.io/tag/dask.html" class="tag">dask</a>
-            <a href="https://phofl.github.io/tag/query-optimizer.html" class="tag">query optimizer</a>
-            <a href="https://phofl.github.io/tag/performance.html" class="tag">performance</a>
-      </div>
-
-    </div>
-
-  </article>
-  <div class="separator"></div>
-  <article>
-    <header>
-      <h2><a href="https://phofl.github.io/coiled-functions-pytorch.html">How to Train a Neural Network on a GPU in the Cloud with coiled functions</a></h2>
-      <time datetime="" title="2023-07-24T00:00:00+02:00" pubdate>Mon 24 July 2023</time>
-    </header>
-
-    <div class="article_content">
-      <p><img alt="" src="../images/coiled_run/coiled-run-pytorch.png"></p>
-<p>We recently pushed out two new and experimental features <a href="https://docs.coiled.io/user_guide/labs/jobs.html?utm_source=phofl&amp;utm_medium=coiled-functions-gpu">coiled jobs</a>
-and <a href="https://docs.coiled.io/user_guide/labs/run.html?utm_source=phofl&amp;utm_medium=coiled-functions-gpu">coiled functions</a>
-which is a deviation of <code>coiled jobs</code>. We are excited about both of them because they:</p>
+RandomForestClassifier(n_jobs=-1, random_state=0)
+</code></pre>
+<p>Let's take a look at the CPU utilization during the training step:</p>
+<p><img alt="" src="../images/coiled_run/coiled-functions-scikit-learn.png"></p>
+<p>There is no need to adjust the other functions. Coiled will run our function on a VM in the cloud with
+enough resources.</p>
+<p>Let's take a brief look at the arguments to <code>coiled.function()</code>:</p>
 <ul>
-<li>Allow users to scale up any given program on any hardware in the cloud.</li>
-<li>Make GPUs easily accessible without going …</li></ul>
-    </div>
+<li><code>vm_type</code>: This specifies the type of <a href="https://aws.amazon.com/ec2/instance-types/">EC2 instance</a>.
+  We are looking for an instance that as many cores as possible to speed up our training step.</li>
+<li><code>keepalive</code>: Keeps the VM alive so that we can run multiple queries against the data in memory.</li>
+</ul>
+<p><code>coiled.function()</code> will now start a VM in AWS with the specified EC2 instance. The VM is normally up
+and running in 1-2 minutes. Coiled will scan our local environment and replicate the same 
+dependencies on this machine. We don't have to specify an explicit Python environment. Inputs of 
+your function are serialized and sent to the VM
+as well. Coiled will return our results back to our local machine.</p>
+<p>Coiled would normally shut down the VM immediately after the Python interpreter finishes. This is mostly to
+reduce costs. We specified
+<code>keepalive="5 minutes"</code> to keep the VM alive for a few minutes after our Python interpreter
+finished. This ensures that new local runs can connect to the same VM avoiding
+the boot time of up to 2 minutes; we call this a warm start.</p>
+<h2 id="conclusion">Conclusion</h2>
+<p><code>coiled functions</code> enables you to run queries on a machine with as many cores as you need.
+This grants you access to computational resources that can be hard to replicate locally.</p>
+<p>For more resources:
+- Check out the <a href="https://docs.coiled.io/user_guide/labs/functions.html">documentation</a>
+- Use Coiled functions to train a <a href="https://medium.com/coiled-hq/how-to-train-a-neural-network-on-a-gpu-in-the-cloud-with-coiled-functions-40fa9aca723b">neural net on a powerful GPU</a>
+- Process <a href="https://medium.com/coiled-hq/process-hundreds-of-gb-of-data-with-coiled-functions-and-duckdb-4b7df2f84d2f">process hundreds of GBs of data with DuckDB</a> using Coiled functions</p>
+        </div>
 
-    <div class="meta">
-      <div>
-        <a href="https://phofl.github.io/coiled-functions-pytorch.html" class="read_more">Read more &#8594;</a>
-      </div>
+        <div class="meta">
+            <div>
+                    <a href="https://phofl.github.io/tag/coiled.html" class="tag">coiled</a>
+                    <a href="https://phofl.github.io/tag/jobs.html" class="tag">jobs</a>
+                    <a href="https://phofl.github.io/tag/scikit-learn.html" class="tag">scikit-learn</a>
+            </div>
+            <div>
+                <a style="font-size:14pt;color: black;">Authors: </a>
+                    <a style="font-size:14pt;color: black;">Patrick Hoefler        </a>
+            </div>
+        </div>
+    </article>
 
-      <div>
-            <a href="https://phofl.github.io/tag/coiled.html" class="tag">coiled</a>
-            <a href="https://phofl.github.io/tag/jobs.html" class="tag">jobs</a>
-            <a href="https://phofl.github.io/tag/gpu.html" class="tag">gpu</a>
-            <a href="https://phofl.github.io/tag/machine-learning.html" class="tag">machine learning</a>
-      </div>
-
-    </div>
-
-  </article>
-  <div class="separator"></div>
-  <article>
-    <header>
-      <h2><a href="https://phofl.github.io/pandas-internals.html">pandas Internals Explained</a></h2>
-      <time datetime="" title="2023-07-21T00:00:00+02:00" pubdate>Fri 21 July 2023</time>
-    </header>
-
-    <div class="article_content">
-      <p><em>Explaining the pandas data model and its advantages</em></p>
-<h2 id="introduction">Introduction</h2>
-<p>pandas enables you to choose between different types of arrays to represent the data of your
-DataFrame. Historically, most DataFrames are backed by NumPy arrays. <a href="https://medium.com/gitconnected/welcoming-pandas-2-0-194094e4275b">pandas 2.0 introduced the 
-option to use PyArrow arrays</a> as a storage format. 
-There exists …</p>
-    </div>
-
-    <div class="meta">
-      <div>
-        <a href="https://phofl.github.io/pandas-internals.html" class="read_more">Read more &#8594;</a>
-      </div>
-
-      <div>
-            <a href="https://phofl.github.io/tag/pandas.html" class="tag">pandas</a>
-      </div>
-
-    </div>
-
-  </article>
-  <div class="separator"></div>
-  <article>
-    <header>
-      <h2><a href="https://phofl.github.io/dask-performance-benchmarking-put-to-the-test-fixing-a-pandas-bottleneck.html">Dask performance benchmarking put to the test: Fixing a pandas bottleneck</a></h2>
-      <time datetime="" title="2023-06-28T00:00:00+02:00" pubdate>Wed 28 June 2023</time>
-    </header>
-
-    <div class="article_content">
-      <p><strong>Getting notified of a significant performance regression the day before release sucks, but quickly identifying and resolving it feels great!</strong></p>
-<p>We were getting set up at our booth at JupyterCon 2023 when we received a notification:
-An engineer on our team had spotted a significant performance regression in Dask.
-With …</p>
-    </div>
-
-    <div class="meta">
-      <div>
-        <a href="https://phofl.github.io/dask-performance-benchmarking-put-to-the-test-fixing-a-pandas-bottleneck.html" class="read_more">Read more &#8594;</a>
-      </div>
-
-      <div>
-            <a href="https://phofl.github.io/tag/dask.html" class="tag">dask</a>
-            <a href="https://phofl.github.io/tag/performance.html" class="tag">performance</a>
-            <a href="https://phofl.github.io/tag/coiled.html" class="tag">coiled</a>
-            <a href="https://phofl.github.io/tag/pandas.html" class="tag">pandas</a>
-      </div>
-
-    </div>
-
-  </article>
-  <div class="separator"></div>
-  <article>
-    <header>
-      <h2><a href="https://phofl.github.io/pandas-benchmarks.html">Benchmarking pandas against Polars from a pandas PoV</a></h2>
-      <time datetime="" title="2023-06-15T00:00:00+02:00" pubdate>Thu 15 June 2023</time>
-    </header>
-
-    <div class="article_content">
-      <p><em>Or: How writing efficient pandas code matters</em></p>
-<p><img alt="" src="../images/pandas_benchmark/title.png"></p>
-<h2 id="introduction">Introduction</h2>
-<p>I've regularly seen benchmarks that show how much faster Polars is compared to pandas. 
-The fact that Polars is faster than pandas is not too surprising since it is multithreaded while 
-pandas is mostly single-core. The big difference surprises me though. That's …</p>
-    </div>
-
-    <div class="meta">
-      <div>
-        <a href="https://phofl.github.io/pandas-benchmarks.html" class="read_more">Read more &#8594;</a>
-      </div>
-
-      <div>
-            <a href="https://phofl.github.io/tag/pandas.html" class="tag">pandas</a>
-      </div>
-
-    </div>
-
-  </article>
-  <div class="separator"></div>
-
-  <nav class="pagination row">
-    <div class="col-xs-6 left">
-        <a class="prev" href="https://phofl.github.io/category/posts2.html">&#8592; Past</a>
-    </div>
-    <div class="col-xs-6 right">
-    </div>
-  </nav>
-
-  </div>
 
 </div>
+
+<style type="text/css">
+{
+    max-width: 700px;
+}
+
+.text_cell .prompt {
+    display: none;
+}
+
+div.cell {
+    padding: 0;
+}
+
+div.text_cell_render {
+    padding: 0;
+}
+
+div.prompt {
+    font-size: 13px;
+}
+
+div.input_prompt {
+    padding: .7em 0.2em;
+}
+
+div.output_prompt {
+    padding: .4em .2em;
+}
+
+div.input_area {
+    margin: .2em 0.4em;
+    max-width: 580px;
+}
+
+table.dataframe {
+    font-family: Arial, sans-serif;
+    font-size: 13px;
+    line-height: 20px;
+}
+
+table.dataframe th, td {
+    padding: 4px;
+    text-align: left;
+}
+
+pre code {
+    background-color: inherit;
+}</style>
 
         </div>
     <footer>
