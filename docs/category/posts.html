@@ -679,26 +679,26 @@ With …</p>
   <div class="separator"></div>
   <article>
     <header>
-      <h2><a href="https://phofl.github.io/pandas-benchmarks.html">Benchmarking pandas against Polars from a pandas PoV</a></h2>
+      <h2><a href="https://phofl.github.io/cow-adaptions.html">Deep dive into pandas Copy-on-Write mode - part III</a></h2>
       <time datetime="" title="2023-06-15T00:00:00+02:00" pubdate>Thu 15 June 2023</time>
     </header>
 
     <div class="article_content">
-      <p><em>Or: How writing efficient pandas code matters</em></p>
-<p><img alt="" src="../images/pandas_benchmark/title.png"></p>
+      <p><em>Explaining the migration path for Copy-on-Write</em></p>
 <h2 id="introduction">Introduction</h2>
-<p>I've regularly seen benchmarks that show how much faster Polars is compared to pandas. 
-The fact that Polars is faster than pandas is not too surprising since it is multithreaded while 
-pandas is mostly single-core. The big difference surprises me though. That's …</p>
+<p>The introduction of Copy-on-Write (CoW) is a breaking change that will have some impact on existing
+pandas-code. We will investigate how we can adapt our code to avoid errors when CoW will be
+enabled by default. This is currently planned for the pandas …</p>
     </div>
 
     <div class="meta">
       <div>
-        <a href="https://phofl.github.io/pandas-benchmarks.html" class="read_more">Read more &#8594;</a>
+        <a href="https://phofl.github.io/cow-adaptions.html" class="read_more">Read more &#8594;</a>
       </div>
 
       <div>
             <a href="https://phofl.github.io/tag/pandas.html" class="tag">pandas</a>
+            <a href="https://phofl.github.io/tag/copy-on-write.html" class="tag">copy-on-write</a>
       </div>
 
     </div>
