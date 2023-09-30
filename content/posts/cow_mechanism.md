@@ -54,7 +54,7 @@ df
 ```
 
 Unfortunately, this also updated ``df`` and not only ``grades``, which has the potential to 
-introduce hard to find bugs. CoW will disallow this behavior and ensures that only ``df`` is
+introduce hard to find bugs. CoW will disallow this behavior and ensures that only ``grades`` is
 updated. We also see a false-positive ``SettingWithCopyWarning`` that doesn't help us here.
 
 Let's look at a ``ChainedIndexing`` example that is not doing anything:

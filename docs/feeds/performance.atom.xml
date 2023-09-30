@@ -171,7 +171,7 @@ df
 2           3     D
 &lt;/code&gt;&lt;/pre&gt;
 &lt;p&gt;Unfortunately, this also updated &lt;code&gt;df&lt;/code&gt; and not only &lt;code&gt;grades&lt;/code&gt;, which has the potential to 
-introduce hard to find bugs. CoW will disallow this behavior and ensures that only &lt;code&gt;df&lt;/code&gt; is
+introduce hard to find bugs. CoW will disallow this behavior and ensures that only &lt;code&gt;grades&lt;/code&gt; is
 updated. We also see a false-positive &lt;code&gt;SettingWithCopyWarning&lt;/code&gt; that doesn't help us here.&lt;/p&gt;
 &lt;p&gt;Let's look at a &lt;code&gt;ChainedIndexing&lt;/code&gt; example that is not doing anything:&lt;/p&gt;
 &lt;pre&gt;&lt;code class="language-python"&gt;df[df[&amp;quot;student_id&amp;quot;] &amp;gt; 2][&amp;quot;grades&amp;quot;] = &amp;quot;F&amp;quot;

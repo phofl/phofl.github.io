@@ -449,7 +449,7 @@ df
 2           3     D
 </code></pre>
 <p>Unfortunately, this also updated <code>df</code> and not only <code>grades</code>, which has the potential to 
-introduce hard to find bugs. CoW will disallow this behavior and ensures that only <code>df</code> is
+introduce hard to find bugs. CoW will disallow this behavior and ensures that only <code>grades</code> is
 updated. We also see a false-positive <code>SettingWithCopyWarning</code> that doesn't help us here.</p>
 <p>Let's look at a <code>ChainedIndexing</code> example that is not doing anything:</p>
 <pre><code class="language-python">df[df[&quot;student_id&quot;] &gt; 2][&quot;grades&quot;] = &quot;F&quot;
