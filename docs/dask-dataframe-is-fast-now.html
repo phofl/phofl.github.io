@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+        <meta name="author" content="Patrick Hoefler">
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width">
+        <title>Dask DataFrame is Fast Now | Patrick Hoefler</title>
+
+	<link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
+	<link rel="icon" href="/favicon.ico" type="image/x-icon">
+        <link rel="alternate" type="application/atom+xml" title="Patrick Hoefler blog atom feed" href="/feeds/all.atom.xml" />
+        <link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,700' rel='stylesheet' type='text/css'>
+
+        <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+        <link rel="stylesheet" type="text/css" href="/theme/css/icons.css"/>
+        <link rel="stylesheet" type="text/css" href="/theme/css/font-awesome.min.css"/>
+        <link rel="stylesheet" type="text/css" href="/theme/css/style.min.css"/>
+        <style>.highlight .hll { background-color: #ffffcc }
+.highlight .c { color: #60a0b0; font-style: italic } /* Comment */
+.highlight .err { border: 1px solid #FF0000 } /* Error */
+.highlight .k { color: #007020; font-weight: bold } /* Keyword */
+.highlight .o { color: #666666 } /* Operator */
+.highlight .cm { color: #60a0b0; font-style: italic } /* Comment.Multiline */
+.highlight .cp { color: #007020 } /* Comment.Preproc */
+.highlight .c1 { color: #60a0b0; font-style: italic } /* Comment.Single */
+.highlight .cs { color: #60a0b0; background-color: #fff0f0 } /* Comment.Special */
+.highlight .gd { color: #A00000 } /* Generic.Deleted */
+.highlight .ge { font-style: italic } /* Generic.Emph */
+.highlight .gr { color: #FF0000 } /* Generic.Error */
+.highlight .gh { color: #000080; font-weight: bold } /* Generic.Heading */
+.highlight .gi { color: #00A000 } /* Generic.Inserted */
+.highlight .go { color: #808080 } /* Generic.Output */
+.highlight .gp { color: #c65d09; font-weight: bold } /* Generic.Prompt */
+.highlight .gs { font-weight: bold } /* Generic.Strong */
+.highlight .gu { color: #800080; font-weight: bold } /* Generic.Subheading */
+.highlight .gt { color: #0040D0 } /* Generic.Traceback */
+.highlight .kc { color: #007020; font-weight: bold } /* Keyword.Constant */
+.highlight .kd { color: #007020; font-weight: bold } /* Keyword.Declaration */
+.highlight .kn { color: #007020; font-weight: bold } /* Keyword.Namespace */
+.highlight .kp { color: #007020 } /* Keyword.Pseudo */
+.highlight .kr { color: #007020; font-weight: bold } /* Keyword.Reserved */
+.highlight .kt { color: #902000 } /* Keyword.Type */
+.highlight .m { color: #40a070 } /* Literal.Number */
+.highlight .s { color: #4070a0 } /* Literal.String */
+.highlight .na { color: #4070a0 } /* Name.Attribute */
+.highlight .nb { color: #007020 } /* Name.Builtin */
+.highlight .nc { color: #0e84b5; font-weight: bold } /* Name.Class */
+.highlight .no { color: #60add5 } /* Name.Constant */
+.highlight .nd { color: #555555; font-weight: bold } /* Name.Decorator */
+.highlight .ni { color: #d55537; font-weight: bold } /* Name.Entity */
+.highlight .ne { color: #007020 } /* Name.Exception */
+.highlight .nf { color: #06287e } /* Name.Function */
+.highlight .nl { color: #002070; font-weight: bold } /* Name.Label */
+.highlight .nn { color: #0e84b5; font-weight: bold } /* Name.Namespace */
+.highlight .nt { color: #062873; font-weight: bold } /* Name.Tag */
+.highlight .nv { color: #bb60d5 } /* Name.Variable */
+.highlight .ow { color: #007020; font-weight: bold } /* Operator.Word */
+.highlight .w { color: #bbbbbb } /* Text.Whitespace */
+.highlight .mf { color: #40a070 } /* Literal.Number.Float */
+.highlight .mh { color: #40a070 } /* Literal.Number.Hex */
+.highlight .mi { color: #40a070 } /* Literal.Number.Integer */
+.highlight .mo { color: #40a070 } /* Literal.Number.Oct */
+.highlight .sb { color: #4070a0 } /* Literal.String.Backtick */
+.highlight .sc { color: #4070a0 } /* Literal.String.Char */
+.highlight .sd { color: #4070a0; font-style: italic } /* Literal.String.Doc */
+.highlight .s2 { color: #4070a0 } /* Literal.String.Double */
+.highlight .se { color: #4070a0; font-weight: bold } /* Literal.String.Escape */
+.highlight .sh { color: #4070a0 } /* Literal.String.Heredoc */
+.highlight .si { color: #70a0d0; font-style: italic } /* Literal.String.Interpol */
+.highlight .sx { color: #c65d09 } /* Literal.String.Other */
+.highlight .sr { color: #235388 } /* Literal.String.Regex */
+.highlight .s1 { color: #4070a0 } /* Literal.String.Single */
+.highlight .ss { color: #517918 } /* Literal.String.Symbol */
+.highlight .bp { color: #007020 } /* Name.Builtin.Pseudo */
+.highlight .vc { color: #bb60d5 } /* Name.Variable.Class */
+.highlight .vg { color: #bb60d5 } /* Name.Variable.Global */
+.highlight .vi { color: #bb60d5 } /* Name.Variable.Instance */
+.highlight .il { color: #40a070 } /* Literal.Number.Integer.Long */</style>
+        <style>body {
+  margin: 0;
+  padding: 0;
+  font: 15px 'Source Sans Pro', sans-serif;
+  line-height: 1.6em;
+  color: #222;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+a {
+  color: #007EE5;
+  text-decoration: none;
+}
+a:hover {
+  color: #007EE5;
+  text-decoration: none;
+}
+header.main-header {
+  background: none repeat scroll 0% 0% #205F29;
+  margin-bottom: 0px;
+}
+header.main-header a {
+  color: #fff;
+}
+header.main-header .container {
+  max-width: 1000px;
+}
+header.main-header .container nav a:hover {
+  background-color: #5C881C;
+}
+article {
+  margin: 0;
+}
+article header.about {
+  margin-bottom: 0px;
+  padding-bottom: 0px;
+}
+article header {
+  margin-bottom: 20px;
+  padding-bottom: 20px;
+}
+article header h1 {
+  margin-bottom: 2px;
+  font-weight: 700;
+  color: #000;
+}
+article header time {
+  color: #9E9E9E;
+  font-size: 0.85em;
+  float: right;
+}
+article header time.left {
+  color: #9E9E9E;
+  font-size: 0.85em;
+  float: left;
+}
+article div.social-links ul {
+  padding: 0px;
+}
+article div.social-links li {
+  display: inline;
+  font-size: 20px;
+}
+article div.social-links li a {
+  color: #000;
+  padding: 10px;
+}
+article div.social-links li a:hover {
+  color: #666;
+  text-decoration: none;
+}
+article p {
+  font-size: 16px;
+  margin-bottom: 20px;
+  line-height: 1.6em;
+}
+article p.note {
+  background: #f5f5f5;
+  border: 1px solid #ddd;
+  padding: 0.533em 0.733em;
+}
+article p.update {
+  background-color: #FEEFB3;
+  border: 1px solid #e6e68a;
+  padding: 0.533em 0.733em;
+}
+article p.alert {
+  background-color: #ffe2e2;
+  border: 1px solid #ffb2b2;
+  padding: 0.533em 0.733em;
+}
+article ul,
+article ol {
+  margin-top: 0px;
+  margin-bottom: 25px;
+}
+article li {
+  font-size: 16px;
+  line-height: 1.6em;
+}
+article a:hover {
+  text-decoration: underline;
+}
+article blockquote {
+  border-left: 2px solid #c7c7cc;
+  color: #666;
+  margin: 30px 0;
+  padding: 0 0 0 25px;
+}
+article img {
+  max-width: 100%;
+}
+article code {
+  color: #333;
+  background-color: #EEE;
+  border-radius: 0;
+  font-size: 13px;
+}
+article .meta {
+  font-size: 11px;
+}
+article .meta a:hover {
+  text-decoration: none;
+}
+article .meta div {
+  margin-bottom: 20px;
+  display: block;
+}
+article .meta a.tag {
+  margin: 0 10px 10px 0;
+  padding: 1px 12px;
+  display: inline-block;
+  font-size: 14px;
+  color: rgba(0, 0, 0, 0.8);
+  background: rgba(0, 0, 0, 0.05);
+}
+article .meta a.tag:hover {
+  background: rgba(0, 0, 0, 0.15);
+}
+article .meta a.read_more,
+article .meta a.comments_btn {
+  font-size: 14px;
+  font-weight: 800;
+  padding: 10px 20px;
+  color: #205F29;
+  background: #FFF;
+  border: 1px solid #205F29;
+}
+article .meta a.read_more:hover,
+article .meta a.comments_btn:hover {
+  color: #FFF;
+  background: #5C881C;
+}
+.index {
+  max-width: 700px;
+}
+.index article header h2 {
+  font-size: 36px;
+  margin-bottom: 2px;
+  font-weight: 700;
+}
+.index article header h2 a {
+  color: #000;
+}
+.index article header h2 a:hover {
+  color: #007EE5;
+  text-decoration: none;
+}
+.index .separator {
+  padding: 40px 0 0 0;
+  margin: 0 0 40px 0;
+  height: 10px;
+  border-bottom: solid 1px #CCC;
+}
+.index .pagination {
+  display: block;
+  margin-bottom: 100px;
+}
+.index .pagination .left {
+  text-align: right;
+}
+.index .pagination .right {
+  text-align: left;
+}
+.index .pagination a {
+  display: inline-block;
+  border: 2px solid #5C881C;
+  margin: 0 5px;
+  padding: 8px 20px;
+  font-weight: bold;
+  color: #5C881C;
+}
+.index .pagination a:hover {
+  color: #FFF;
+  background: #5C881C;
+}
+.post {
+  max-width: 700px;
+}
+.post h2:before {
+  content: "# ";
+  font-weight: bold;
+  color: #DDD;
+}
+.post h3:before {
+  content: "## ";
+  font-weight: bold;
+  color: #DDD;
+}
+.post h4:before {
+  content: "### ";
+  font-weight: bold;
+  color: #DDD;
+}
+.post article .meta {
+  margin: 50px 0 100px;
+}
+.list {
+  max-width: 700px;
+}
+.list ul.double-list {
+  margin: 0 auto 60px;
+  padding: 0;
+  list-style-type: none;
+}
+.list ul.double-list li {
+  padding: 5px 0;
+}
+.list ul.double-list li h2 {
+  font-size: 1em;
+  display: inline;
+  font-weight: normal;
+}
+.list ul.double-list li span {
+  font-family: sans-serif;
+  text-transform: uppercase;
+  text-align: right;
+  float: right;
+  padding-top: 3px;
+  font-size: 12px;
+  color: #999;
+}
+.full-width-content {
+  padding-top: 10px;
+  padding-left: 0px;
+  padding-right: 0px;
+  margin-left: -20px;
+  margin-right: -20px;
+}
+.col-xs-1,
+.col-sm-1,
+.col-md-1,
+.col-lg-1,
+.col-xs-2,
+.col-sm-2,
+.col-md-2,
+.col-lg-2,
+.col-xs-3,
+.col-sm-3,
+.col-md-3,
+.col-lg-3,
+.col-xs-4,
+.col-sm-4,
+.col-md-4,
+.col-lg-4,
+.col-xs-5,
+.col-sm-5,
+.col-md-5,
+.col-lg-5,
+.col-xs-6,
+.col-sm-6,
+.col-md-6,
+.col-lg-6,
+.col-xs-7,
+.col-sm-7,
+.col-md-7,
+.col-lg-7,
+.col-xs-8,
+.col-sm-8,
+.col-md-8,
+.col-lg-8,
+.col-xs-9,
+.col-sm-9,
+.col-md-9,
+.col-lg-9,
+.col-xs-10,
+.col-sm-10,
+.col-md-10,
+.col-lg-10,
+.col-xs-11,
+.col-sm-11,
+.col-md-11,
+.col-lg-11,
+.col-xs-12,
+.col-sm-12,
+.col-md-12,
+.col-lg-12 {
+  padding-right: 0px;
+  padding-left: 0px;
+}</style>
+
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+	<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+
+
+    </head>
+
+    <body>
+        <header class="navbar navbar-inverse bs-docs-nav">
+            <div class="container-fluid">
+                <div class="navbar-header">
+		  <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#theNavbar">
+		    <span class="icon-bar"></span>
+		    <span class="icon-bar"></span>
+		    <span class="icon-bar"></span>
+		  </button>
+                  <a class="navbar-brand" href="/" title="Home" class="title">Patrick Hoefler</a>
+                </div>
+                <nav class="collapse navbar-collapse bs-navbar-collapse" role="navigation" id="theNavbar">
+		    <ul class="nav navbar-nav navbar-right">
+                            <li><a href="/pages/about.html" title="About">About</a></li>
+                            <li><a href="/archives.html" title="Archive">Archive</a></li>
+                    </ul>
+                </nav>
+            </div>
+        </header>
+
+        <div id="wrap">
+<div class="container post">
+    <article>
+        <header>
+            <h1>Dask DataFrame is Fast Now</h1>
+            <time datetime="article.date.isoformat()" pubdate>Mon 27 May 2024</time>
+        </header>
+
+        <div class="article_content">
+            <p><img alt="" src="../images/dask_dataframe_fast/dask-improvement.png"></p>
+<h2 id="intro">Intro</h2>
+<p>Dask DataFrame scales out pandas DataFrames to operate at the 100GB-100TB scale.</p>
+<p>Historically, <a href="https://www.dask.org/">Dask</a> was pretty slow compared to other tools in this space (like Spark). Due to a number of improvements focused on performance,
+it's now pretty fast (about 20x faster than before). The new implementation moved Dask from getting destroyed by
+Spark on every benchmark to regularly outperforming Spark on TPC-H queries by a significant margin.</p>
+<p>Dask DataFrame workloads struggled with many things. Performance and memory usage were
+commonly seen pain points, shuffling was unstable for bigger datasets, making scaling out
+hard. Writing efficient code required understanding too much of the internals of Dask.</p>
+<p>The new implementation changed all of this. Things that didn't work were completely rewritten from scratch and existing
+implementations were improved upon. This puts Dask DataFrames on a solid foundation that
+allows faster iteration cycles in the future.</p>
+<p>We'll go through the three most prominent changes:</p>
+<ol>
+<li>Apache Arrow support</li>
+<li>Faster joins</li>
+<li>Query optimization</li>
+</ol>
+<p>We'll cover how these changes impact performance and make it easier to use Dask efficiently, even for users that are new to distributed computing. We'll also discuss plans for future improvements.</p>
+<h2 id="1-apache-arrow-support-efficient-string-datatype">1. Apache Arrow Support: Efficient String Datatype</h2>
+<p>A Dask DataFrame consists of many pandas DataFrames. Historically, pandas used NumPy for numeric data, 
+but Python objects for text data, which are inefficient and blow up memory usage. Operations on 
+object data also hold the GIL, which doesn't matter much for pandas, but is a catastrophy for 
+performance with a parallel system like Dask.</p>
+<p>The pandas 2.0 release introduced support for general-purpose Arrow datatypes, so <a href="https://docs.coiled.io/blog/pyarrow-in-pandas-and-dask.html">Dask now uses PyArrow-backed
+strings by default</a>.  These are <em>much</em> better.  PyArrow strings reduce memory usage by up to 80% and
+unlock multi-threading for string operations. Workloads that previously
+struggled with available memory now fit comfortably in much less space, and are
+a lot faster because they no longer constantly spill excess data to disk.</p>
+<p><img alt="" src="../images/dask_dataframe_fast/arrow-strings-memory-usage.png"></p>
+<h2 id="2-faster-joins-with-a-new-shuffle-algorithm">2. Faster Joins with a New Shuffle Algorithm</h2>
+<p>Shuffling is an essential component of distributed systems to enable sorting, joins, and complex group by operations. It is an all-to-all, network-intensive operation that's often the most expensive component in a workflow. Dask has a new shuffling system, which greatly impacts overall performance, especially on complex, data-intensive workloads.</p>
+<p>A shuffle operation is intrinsically an all-to-all communication operation where every
+input partition has to provide a tiny slice of data to every output partition. Dask was already
+using it's own task-based algorithm that managed to reduce the <code>O(n * n)</code>  task
+complexity to <code>O(log(n) * n)</code> where <code>n</code> is the number of partitions. This was a drastic
+reduction in the number of tasks, but the non-linear scaling ultimately did not allow Dask to process
+arbitrarily large datasets.</p>
+<p>Dask introduced a new <a href="https://docs.coiled.io/blog/shuffling-large-data-at-constant-memory.html">P2P (peer-to-peer) shuffle  method</a> that reduced the task complexity to <code>O(n)</code>
+which scales linearly with the size of the dataset and the size of the cluster. It also
+incorporates an efficient disk integration which allows easily shuffling datasets which are much
+larger than memory.  The new system is extremely stable and "just works" across any scale of data.</p>
+<p><img alt="" src="../images/dask_dataframe_fast/shuffle-memory-comparison.png"></p>
+<h2 id="3-optimizer">3. Optimizer</h2>
+<p>Dask itself is lazy, which means that it registers your whole query before doing any actual work.
+This is a powerful concept that enables a lot of optimizations, but historically Dask wasn't taking advantage of this
+knowledge in the past. Dask also did a bad job of hiding internal complexities and
+left users on their own while navigating the difficulties of distributed computing and running
+large scale queries. It made writing efficient code painful for non-experts.</p>
+<p><a href="https://docs.dask.org/en/stable/changelog.html#query-planning">The Dask release in March</a> includes a complete re-implementation of the DataFrame API to support query optimization. This is a big deal.
+The new engine centers around a query optimizer that rewrites your code to make it more efficient and
+better tailored to Dask's strengths. Let's dive into some optimization strategies, how they make
+Dask run faster and scale better.</p>
+<p>We will start with a couple general-purpose optimizations:</p>
+<ol>
+<li>Column projection</li>
+<li>Filter pushdown</li>
+</ol>
+<p>And then dive into more specific techniques that are tailored to distributed systems generally
+and Dask more specifically:</p>
+<ol>
+<li>Automatic partition resizing</li>
+<li>Trivial merge and join operations</li>
+</ol>
+<p>(column-projection)=</p>
+<h3 id="31-column-projection">3.1 Column Projection</h3>
+<p>Most datasets have more columns than needed. Dropping them requires foresight ("What columns will I need for this query? 🤔") so most people don't think about this when loading data. This is bad for performance because carrying around lots of excess data slows everything down.
+Column Projection drops columns as soon as they aren't needed anymore. It's a straightforward optimization, but highly beneficial.</p>
+<p>The legacy implementation always reads all columns from storage and only drops columns when explicitly specified by the user.
+Simply operating on less data is a big win for performance and memory usage.</p>
+<p>The optimizer looks at the query and figures out which columns are needed for each operation.
+It looks at the final step of the query and then works backwards step by
+step to the data source, injecting drop operations to get rid of unnecessary columns.</p>
+<p><img alt="" src="../images/dask_dataframe_fast/projection.png"></p>
+<h3 id="32-filter-pushdown">3.2 Filter Pushdown</h3>
+<p>Filter pushdown is another general-purpose optimization with
+the same goal as column projection: operate on less data. The legacy implementation did not reorder filter operations. The new implementation executes filter operations as early as
+possible while maintaining the same results.</p>
+<p>The optimizer identifies every filter in the query and looks at the previous operation to see if we
+can move the filter closer to the data source. It will repeat this until it finds an operation that
+can't be switched with a filter. This is a bit harder than
+column projections, because Dask has to make sure that the operations don't change the values of the
+DataFrame. For example, switching a filter and a merge operation is fine (values don't change), but switching a filter
+and a replace operation is invalid, because the values might change and rows that would previously have been filtered out now won't be, or vice versa.</p>
+<p><img alt="" src="../images/dask_dataframe_fast/filter.png"></p>
+<p>Additionally, if the filter is strong enough then Dask can potentially drop complete files in the IO step.
+This is a best-case scenario, where an earlier filter brings a huge performance improvement and even
+requires reading less data from remote storage.</p>
+<h3 id="33-automatically-resizing-partitions">3.3 Automatically Resizing Partitions</h3>
+<p>In addition to implementing the common optimization techniques described above, we’ve also improved a
+common pain point specific to distributed systems generally and Dask users specifically: optimal partition sizes.</p>
+<p>Dask DataFrames consist of many small pandas DataFrames called <em>partitions</em>. Often, the number of
+partitions is decided for you and Dask users are advised to manually "repartition" after reducing
+or expanding their data (for example by dropping columns, filtering data, or expanding with joins) (see the <a href="https://docs.dask.org/en/stable/dataframe-best-practices.html#repartition-to-reduce-overhead">Dask docs</a>).
+Without this extra step,
+the (usually small) overhead from Dask can become a bottleneck if the pandas DataFrames
+become too small, making Dask workflows painfully slow.</p>
+<p>Manually controlling the partition size is a difficult task that we, as Dask users, shouldn’t have
+to worry about. It is also slow because it requires network transfer of some partitions.
+Dask DataFrame now automatically does two things to help when the partitions get
+too small:</p>
+<ul>
+<li>
+<p>Keeps the size of each partition constant, based on the ratio of data you want to compute vs.
+  the original file size. If, for example, you filter out 80% of the original dataset, Dask will
+  automatically combine the resulting smaller partitions into fewer, larger partitions.</p>
+</li>
+<li>
+<p>Combines too-small partitions into larger partitions, based on an absolute minimum
+  (default is 75 MB). If, for example, your original dataset is split into many tiny files,
+  Dask will automatically combine them.</p>
+</li>
+</ul>
+<p><img alt="" src="../images/dask_dataframe_fast/automatic_repartitioning_1.png"></p>
+<p>The optimizer will look at the number of columns and the size of the data within those. It
+calculates a ratio that is used to combine multiple files into one partition.</p>
+<p><img alt="" src="../images/dask_dataframe_fast/automatic_repartitioning_2.png"></p>
+<p>This step is currently limited to IO operations (like reading in a parquet dataset), but we plan
+to extend it to other operations that allow cheaply combining partitions.</p>
+<h3 id="34-trivial-merge-and-join-operations">3.4 Trivial Merge and Join Operations</h3>
+<p>Merge and join operations are typically cheap on a single machine with pandas but expensive in a
+distributed setting.  Merging data in shared memory is cheap, while merging data across a network is quite slow,
+due to the shuffle operations explained earlier.</p>
+<p>This is one of the most expensive operations in a distributed system. The legacy implementation triggered
+a network transfer of both input DataFrames for every merge operation. This is sometimes necessary, but very
+expensive.</p>
+<p><img alt="" src="../images/dask_dataframe_fast/avoiding-shuffles.png"></p>
+<p>The optimizer will determine when shuffling is necessary versus when
+a trivial join is sufficient because the data is already aligned properly. This can make individual merges
+an order of magnitude faster. This also applies to other operations that normally require a shuffle
+like <code>groupby().apply()</code>.</p>
+<p>Dask merges used to be inefficient, which caused long runtimes. The optimizer fixes this for
+the trivial case where these operations happen after each other, but the technique isn't very
+advanced yet. There is still a lot of potential for improvement.</p>
+<p><img alt="" src="../images/dask_dataframe_fast/avoiding-shuffles-advanced.png"></p>
+<p>The optimizer will look at the expression and inject shuffle nodes where necessary to avoid
+unnecessary shuffles.</p>
+<h2 id="how-do-the-improvements-stack-up-compared-to-the-legacy-implementation">How do the improvements stack up compared to the legacy implementation?</h2>
+<p>Dask is now 20x faster than before.  This improvement applies to the entire
+DataFrame API (not just isolated components), with no known
+performance regressions.  Dask now runs workloads that were impossible to
+complete in an acceptable timeframe before.  This performance boost is due to many
+improvements all layered on top of each other.  It's not about doing one thing
+especially well, but about doing nothing especially poorly.</p>
+<p><img alt="" src="../images/dask_dataframe_fast/dask-improvement.png"></p>
+<p>Performance, while the most enticing improvement, is not the only thing that got better. The
+optimizer hides a lot of complexity from the user and makes the transition from pandas to Dask a
+lot easier because it's now much more difficult to write poorly performing code.
+The whole system is more robust.</p>
+<p>The new architecture of the API is a lot easier to work with as well. The legacy implementation leaked
+a lot of internal complexities into high-level API implementations, making changes cumbersome. Improvements
+are almost trivial to add now.</p>
+<h2 id="whats-to-come">What's to come?</h2>
+<p>Dask DataFrame changed a lot over the last 18 months. The legacy API was often difficult to work with and
+struggled with scaling out. The new implementation dropped things that didn't work and
+improved existing implementations. The heavy lifting is finished now, which allows for
+faster iteration cycles to improve upon the status quo. Incremental improvements are now
+trivial to add.</p>
+<p>A few things that are on the immediate roadmap:</p>
+<ul>
+<li><strong>Auto repartitioning:</strong> this is partially implemented, but there is more potential to choose a more
+  efficient partition size during optimization.</li>
+<li><strong>Faster Joins:</strong> there's still lots of fine-tuning to be done here.
+  For example, there is a PR in flight with a 30-40% improvement.</li>
+<li><strong>Join Reordering:</strong> Dask doesn't do this yet, but it's on the immediate roadmap</li>
+</ul>
+<h2 id="learn-more">Learn more</h2>
+<p>This article focuses on a number of improvements to Dask DataFrame and how much faster and more reliable it is as a result. If you're choosing between Dask and other popular DataFrame tools, you might also consider:</p>
+        </div>
+
+        <div class="meta">
+            <div>
+                    <a href="https://phofl.github.io/tag/dask.html" class="tag">dask</a>
+                    <a href="https://phofl.github.io/tag/dataframe.html" class="tag">dataframe</a>
+            </div>
+            <div>
+                <a style="font-size:14pt;color: black;">Authors: </a>
+                    <a style="font-size:14pt;color: black;">Patrick Hoefler        </a>
+            </div>
+        </div>
+    </article>
+
+
+</div>
+
+<style type="text/css">
+{
+    max-width: 700px;
+}
+
+.text_cell .prompt {
+    display: none;
+}
+
+div.cell {
+    padding: 0;
+}
+
+div.text_cell_render {
+    padding: 0;
+}
+
+div.prompt {
+    font-size: 13px;
+}
+
+div.input_prompt {
+    padding: .7em 0.2em;
+}
+
+div.output_prompt {
+    padding: .4em .2em;
+}
+
+div.input_area {
+    margin: .2em 0.4em;
+    max-width: 580px;
+}
+
+table.dataframe {
+    font-family: Arial, sans-serif;
+    font-size: 13px;
+    line-height: 20px;
+}
+
+table.dataframe th, td {
+    padding: 4px;
+    text-align: left;
+}
+
+pre code {
+    background-color: inherit;
+}</style>
+
+        </div>
+    <footer>
+      <section class="author">
+        <div class="author__link">
+          <ul>
+            <a href="https://phofl.github.io/pages/about.html" title="About"><i class="fa fa-link"></i></a>
+              <a href="https://github.com/phofl/" target="_blank" title="github">
+                <i class="fa fa-github-square"></i>
+              </a>
+              <a href="https://www.linkedin.com/in/patrick-hoefler/" target="_blank" title="linkedin">
+                <i class="fa fa-linkedin-square"></i>
+              </a>
+              <a href="mailto:patrick_hoefler@gmx.net" target="_blank" title="mail">
+                <i class="fa fa-envelope"></i>
+              </a>
+              <a href="https://phofl.github.io/feeds/all.atom.xml" target="_blank" title="Feed">
+                <i class="fa fa-rss"></i>
+              </a>
+          </ul>
+        </div>
+      </section>
+    </footer>
+
+  <!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-6N2N937CH5"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-6N2N937CH5');
+</script>
+    </body>
+</html>
