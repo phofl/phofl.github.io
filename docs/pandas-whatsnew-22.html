@@ -6,7 +6,7 @@
         <meta name="author" content="Patrick Hoefler">
         <meta name="description" content="">
         <meta name="viewport" content="width=device-width">
-        <title>Archives | Patrick Hoefler</title>
+        <title>What's new in pandas 2.2 | Patrick Hoefler</title>
 
 	<link rel="shortcut icon" href="/favicon.ico" type="image/x-icon">
 	<link rel="icon" href="/favicon.ico" type="image/x-icon">
@@ -406,86 +406,235 @@ article .meta a.comments_btn:hover {
         </header>
 
         <div id="wrap">
-<div class="container list">
+<div class="container post">
     <article>
-        <h1 style="margin-bottom: 30px;">Tag: pandas</h1>
+        <header>
+            <h1>What's new in pandas 2.2</h1>
+            <time datetime="article.date.isoformat()" pubdate>Fri 26 January 2024</time>
+        </header>
 
-        <ul class="double-list">
-            <li>
-                <a href='/pandas-whatsnew-22.html'>
-                    <h2>What's new in pandas 2.2</h2>
-                    <span>26.01.2024</span>
-                </a>
-            </li>
-            <li>
-                <a href='/cow-adaptions.html'>
-                    <h2>Deep dive into pandas Copy-on-Write mode - part III</h2>
-                    <span>29.09.2023</span>
-                </a>
-            </li>
-            <li>
-                <a href='/pandas-whatsnew-21.html'>
-                    <h2>What's new in pandas 2.1</h2>
-                    <span>07.09.2023</span>
-                </a>
-            </li>
-            <li>
-                <a href='/cow-deep-dive-optimizations.html'>
-                    <h2>Deep Dive into pandas Copy-on-Write Mode - Part II</h2>
-                    <span>17.08.2023</span>
-                </a>
-            </li>
-            <li>
-                <a href='/cow-deep-dive.html'>
-                    <h2>Deep Dive into pandas Copy-on-Write Mode - Part I</h2>
-                    <span>09.08.2023</span>
-                </a>
-            </li>
-            <li>
-                <a href='/pandas-internals.html'>
-                    <h2>pandas Internals Explained</h2>
-                    <span>21.07.2023</span>
-                </a>
-            </li>
-            <li>
-                <a href='/dask-performance-benchmarking-put-to-the-test-fixing-a-pandas-bottleneck.html'>
-                    <h2>Dask performance benchmarking put to the test: Fixing a pandas bottleneck</h2>
-                    <span>28.06.2023</span>
-                </a>
-            </li>
-            <li>
-                <a href='/pandas-benchmarks.html'>
-                    <h2>Benchmarking pandas against Polars from a pandas PoV</h2>
-                    <span>15.06.2023</span>
-                </a>
-            </li>
-            <li>
-                <a href='/pyarrow-pandas-dask.html'>
-                    <h2>Utilizing PyArrow to improve pandas and Dask workflows</h2>
-                    <span>05.06.2023</span>
-                </a>
-            </li>
-            <li>
-                <a href='/pandas-20.html'>
-                    <h2>Welcoming pandas 2.0</h2>
-                    <span>23.03.2023</span>
-                </a>
-            </li>
-            <li>
-                <a href='/indexing-copy-view.html'>
-                    <h2>A guide to efficient data selection in pandas</h2>
-                    <span>10.02.2023</span>
-                </a>
-            </li>
-            <li>
-                <a href='/cow-introduction.html'>
-                    <h2>A solution for inconsistencies in indexing operations in pandas</h2>
-                    <span>23.12.2022</span>
-                </a>
-            </li>
-        </ul>
+        <div class="article_content">
+            <p><em>The most interesting things about the new release</em></p>
+<p>pandas 2.2 was released on January 22nd 2024. Let’s take a look at the things this release introduces 
+and how it will help us to improve our pandas workloads. It includes a bunch of improvements that will
+improve the user experience.</p>
+<p>pandas 2.2 brought a few additional improvements that rely on the Apache Arrow ecosystem. Additionally,
+we added deprecations for changes that are necessary to make Copy-on-Write the default in pandas 3.0.
+Let’s dig into what this means for you. We will look at the most important changes in detail.</p>
+<p>I am part of the pandas core team. I am an open source engineer for <a href="https://www.coiled.io">Coiled</a> 
+where I work on Dask, including improving the pandas integration.</p>
+<h2 id="improved-pyarrow-support">Improved PyArrow support</h2>
+<p>We have introduced PyArrow backed DataFrame in pandas 2.0 and continued to improve the integration
+since then to enable a seamless integration into the pandas API. pandas has accessors for certain
+dtypes that enable specialized operations, like the string accessor, that provides many string methods.
+Historically, list and structs were represented as NumPy object dtype, which made working with them
+quite cumbersome. The Arrow dtype backend now enables tailored accessors for lists and structs, which
+makes working with these obejcts a lot easier.</p>
+<p>Let’s look at an example:</p>
+<pre><code class="language-python">import pyarrow as pa
+
+series = pd.Series(
+    [
+        {&quot;project&quot;: &quot;pandas&quot;, &quot;version&quot;: &quot;2.2.0&quot;},
+        {&quot;project&quot;: &quot;numpy&quot;, &quot;version&quot;: &quot;1.25.2&quot;},
+        {&quot;project&quot;: &quot;pyarrow&quot;, &quot;version&quot;: &quot;13.0.0&quot;},
+    ],
+    dtype=pd.ArrowDtype(
+        pa.struct([
+            (&quot;project&quot;, pa.string()),
+            (&quot;version&quot;, pa.string()),
+        ])
+    ),
+)
+</code></pre>
+<p>This is a series that contains a dictionary in every row. Previously, this was only possible
+with NumPy object dtype and accessing elements from these rows required iterating over them.
+The <code>struct</code> accessor now enables direct access to certain attributes:</p>
+<pre><code class="language-python">
+series.struct.field(&quot;project&quot;)
+
+0     pandas
+1      numpy
+2    pyarrow
+Name: project, dtype: string[pyarrow]
+</code></pre>
+<p>The next release will bring a CategoricalAccessor based on Arrow types.</p>
+<h2 id="integrating-the-apache-adbc-driver">Integrating the Apache ADBC Driver</h2>
+<p>Historically, pandas relied on SqlAlchemy to read data from an Sql database. This worked very reliably,
+but it was very slow. Alchemy reads the data row-wise, while pandas has a columnar layout, which
+makes reading and moving the data into a DataFrame slower than necessary. </p>
+<p>The <a href="https://arrow.apache.org/docs/format/ADBC.html">ADBC Driver</a> from the Apache Arrow project enables users to read data in a columnar 
+layout, which brings huge performance improvements. It reads the data and stores them into an Arrow
+table, which is used to convert to a pandas DataFrame. You can make this conversion zero-copy, if you set
+<code>dtype_backend="pyarrow"</code> for <code>read_sql</code>.</p>
+<p>Let's look at an example:</p>
+<pre><code class="language-python">import adbc_driver_postgresql.dbapi as pg_dbapi
+
+df = pd.DataFrame(
+   [
+       [1, 2, 3],
+       [4, 5, 6],
+   ],
+   columns=['a', 'b', 'c']
+)
+uri = &quot;postgresql://postgres:postgres@localhost/postgres&quot;
+with pg_dbapi.connect(uri) as conn:
+   df.to_sql(&quot;pandas_table&quot;, conn, index=False)
+
+# for round-tripping
+with pg_dbapi.connect(uri) as conn:
+   df2 = pd.read_sql(&quot;pandas_table&quot;, conn)
+</code></pre>
+<p>The ADBC Driver currently supports Postgres and Sqlite. I would recommend everyone to switch over
+to this driver if you use Postgres, the driver is significantly faster and completely avoids
+round-tripping through Python objects, thus preserving the database types more reliably. This is the
+feature that I am personally most excited about.</p>
+<h2 id="adding-case_when-to-the-pandas-api">Adding case_when to the pandas API</h2>
+<p>Coming from Sql to pandas, users often miss the case-when syntax that provides an easy and clean way to
+create new columns conditionally. pandas 2.2 adds a new <code>case_when</code> method, that is defined on a
+Series. It operates similarly to what Sql does.</p>
+<p>Let's look at an example:</p>
+<pre><code class="language-python">
+df = pd.DataFrame(dict(a=[1, 2, 3], b=[4, 5, 6]))
+
+default=pd.Series('default', index=df.index)
+default.case_when(
+    caselist=[
+        (df.a == 1, 'first'),
+        (df.a.gt(1) &amp; df.b.eq(5), 'second'),
+    ],
+)
+</code></pre>
+<p>The method takes a list of conditions that are evaluated sequentially. The new object is then
+created with those values in rows where the condition evaluates to True. The method should make
+it significantly easier for us to create conditional columns.</p>
+<h2 id="copy-on-write">Copy-on-Write</h2>
+<p>Copy-on-Write was initially introduced in pandas 1.5.0. The mode will become the default behavior
+with 3.0, which is hopefully the next pandas release. This means that we have to get our code into
+a state where it is compliant with the Copy-on-Write rules. pandas 2.2 introduced deprecation warnings
+for operations that will change behavior.</p>
+<pre><code class="language-python">df = pd.DataFrame({&quot;x&quot;: [1, 2, 3]})
+
+df[&quot;x&quot;][df[&quot;x&quot;] &gt; 1] = 100
+</code></pre>
+<p>This will now raise a <code>FutureWarning</code>.</p>
+<pre><code class="language-python">FutureWarning: ChainedAssignmentError: behaviour will change in pandas 3.0!
+You are setting values through chained assignment. Currently this works in certain cases, but when 
+using Copy-on-Write (which will become the default behaviour in pandas 3.0) this will never work to 
+update the original DataFrame or Series, because the intermediate object on which we are setting 
+values will behave as a copy. A typical example is when you are setting values in a column of a 
+DataFrame, like:
+
+df[&quot;col&quot;][row_indexer] = value
+
+Use `df.loc[row_indexer, &quot;col&quot;] = values` instead, to perform the assignment in a single step and 
+ensure this keeps updating the original `df`.
+</code></pre>
+<p>I wrote <a href="https://medium.com/towards-data-science/deep-dive-into-pandas-copy-on-write-mode-part-iii-c024eaa16ed4">an earlier post</a> that goes into more details about how you can migrate your code and what
+to expect. There is an additional warning mode for Copy-on-Write that will raise warnings for all
+cases that change behavior:</p>
+<pre><code class="language-python">
+pd.options.mode.copy_on_write = &quot;warn&quot;
+</code></pre>
+<p>Most of those warnings are only noise for the majority of pandas users, which is the
+reason why they are hidden behind an option. </p>
+<pre><code class="language-python">pd.options.mode.copy_on_write = &quot;warn&quot;
+
+df = pd.DataFrame({&quot;a&quot;: [1, 2, 3]})
+view = df[&quot;a&quot;]
+view.iloc[0] = 100
+</code></pre>
+<p>This will raise a lengthy warning explaining what will change:</p>
+<pre><code class="language-python">FutureWarning: Setting a value on a view: behaviour will change in pandas 3.0.
+You are mutating a Series or DataFrame object, and currently this mutation will
+also have effect on other Series or DataFrame objects that share data with this
+object. In pandas 3.0 (with Copy-on-Write), updating one Series or DataFrame object
+will never modify another.
+</code></pre>
+<p>The short summary of this is: Updating <code>view</code> will never update <code>df</code>, no matter what operation
+is used. This is most likely not relevant for most.</p>
+<p>I would recommend enabling the mode and checking the warnings briefly, but not to pay too much attention
+to them if you are comfortable that you are not relying on updating two different objects at once.</p>
+<p>I would recommend checking out the <a href="https://pandas.pydata.org/docs/dev/user_guide/copy_on_write.html#migrating-to-copy-on-write">migration guide for Copy-on-Write</a> that explains the necessary
+changes in more detail.</p>
+<h2 id="upgrading-to-the-new-version">Upgrading to the new version</h2>
+<p>You can install the new pandas version with:</p>
+<pre><code class="language-python">pip install -U pandas
+</code></pre>
+<p>Or:</p>
+<pre><code class="language-python">mamba install -c conda-forge pandas=2.2
+</code></pre>
+<p>This will give you the new release in your environment.</p>
+<h2 id="conclusion">Conclusion</h2>
+<p>We’ve looked at a couple of improvements that will improve performance and user experience
+for certain aspects of pandas. The most exciting new features will come in pandas 3.0, where
+Copy-on-Write will be enabled by default.</p>
+<p>Thank you for reading. Feel free to reach out to share your thoughts and feedback.</p>
+        </div>
+
+        <div class="meta">
+            <div>
+                    <a href="https://phofl.github.io/tag/pandas.html" class="tag">pandas</a>
+            </div>
+            <div>
+                <a style="font-size:14pt;color: black;">Authors: </a>
+                    <a style="font-size:14pt;color: black;">Patrick Hoefler        </a>
+            </div>
+        </div>
     </article>
+
+
 </div>
+
+<style type="text/css">
+{
+    max-width: 700px;
+}
+
+.text_cell .prompt {
+    display: none;
+}
+
+div.cell {
+    padding: 0;
+}
+
+div.text_cell_render {
+    padding: 0;
+}
+
+div.prompt {
+    font-size: 13px;
+}
+
+div.input_prompt {
+    padding: .7em 0.2em;
+}
+
+div.output_prompt {
+    padding: .4em .2em;
+}
+
+div.input_area {
+    margin: .2em 0.4em;
+    max-width: 580px;
+}
+
+table.dataframe {
+    font-family: Arial, sans-serif;
+    font-size: 13px;
+    line-height: 20px;
+}
+
+table.dataframe th, td {
+    padding: 4px;
+    text-align: left;
+}
+
+pre code {
+    background-color: inherit;
+}</style>
+
         </div>
     <footer>
       <section class="author">

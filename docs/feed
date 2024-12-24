@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<rss version="2.0"><channel><title>Patrick Hoefler</title><link>https://phofl.github.io/</link><description></description><lastBuildDate>Fri, 29 Sep 2023 00:00:00 +0200</lastBuildDate><item><title>Deep dive into pandas Copy-on-Write mode - part III</title><link>https://phofl.github.io/cow-adaptions.html</link><description>&lt;p&gt;&lt;em&gt;Explaining the migration path for Copy-on-Write&lt;/em&gt;&lt;/p&gt;
+<rss version="2.0"><channel><title>Patrick Hoefler</title><link>https://phofl.github.io/</link><description></description><lastBuildDate>Fri, 26 Jan 2024 00:00:00 +0100</lastBuildDate><item><title>What's new in pandas 2.2</title><link>https://phofl.github.io/pandas-whatsnew-22.html</link><description>&lt;p&gt;&lt;em&gt;The most interesting things about the new release&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;pandas 2.2 was released on January 22nd 2024. Let’s take a look at the things this release introduces 
+and how it will help us to improve our pandas workloads. It includes a bunch of improvements that will
+improve the user …&lt;/p&gt;</description><dc:creator xmlns:dc="http://purl.org/dc/elements/1.1/">Patrick Hoefler</dc:creator><pubDate>Fri, 26 Jan 2024 00:00:00 +0100</pubDate><guid isPermaLink="false">tag:phofl.github.io,2024-01-26:/pandas-whatsnew-22.html</guid><category>posts</category><category>pandas</category></item><item><title>Deep dive into pandas Copy-on-Write mode - part III</title><link>https://phofl.github.io/cow-adaptions.html</link><description>&lt;p&gt;&lt;em&gt;Explaining the migration path for Copy-on-Write&lt;/em&gt;&lt;/p&gt;
 &lt;h2 id="introduction"&gt;Introduction&lt;/h2&gt;
 &lt;p&gt;The introduction of Copy-on-Write (CoW) is a breaking change that will have some impact on existing
 pandas-code. We will investigate how we can adapt our code to avoid errors when CoW will be
