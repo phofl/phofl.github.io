@@ -410,6 +410,60 @@ article .meta a.comments_btn:hover {
 
   <article>
     <header>
+      <h2><a href="https://phofl.github.io/xarray-quantile-dask.html">Faster Xarray Quantile Computations with Dask</a></h2>
+      <time datetime="" title="2024-12-17T00:00:00+01:00" pubdate>Tue 17 December 2024</time>
+    </header>
+
+    <div class="article_content">
+      <p><em>There have been a number of engineering <a href="https://docs.dask.org/en/stable/changelog.html#v2024-11-2">improvements to Dask Array</a> like consistent chunksizes in Xarray rolling-constructs and improved efficiency in <code>map_overlap</code>. Notably, as of Dask version 2024.11.2, calculating quantiles is much faster and more reliable.</em></p>
+<p><img alt="" src="../images/quantile-fast.gif"></p>
+<h2 id="calculating-quantiles-with-xarray">Calculating Quantiles with Xarray</h2>
+<p>Calculating quantiles is a common operation for geospatial …</p>
+    </div>
+
+    <div class="meta">
+      <div>
+        <a href="https://phofl.github.io/xarray-quantile-dask.html" class="read_more">Read more &#8594;</a>
+      </div>
+
+      <div>
+            <a href="https://phofl.github.io/tag/dask.html" class="tag">dask</a>
+            <a href="https://phofl.github.io/tag/array.html" class="tag">array</a>
+      </div>
+
+    </div>
+
+  </article>
+  <div class="separator"></div>
+  <article>
+    <header>
+      <h2><a href="https://phofl.github.io/xarray-groupby-map-dask.html">Improving GroupBy.map with Dask and Xarray</a></h2>
+      <time datetime="" title="2024-11-21T00:00:00+01:00" pubdate>Thu 21 November 2024</time>
+    </header>
+
+    <div class="article_content">
+      <p>Running large-scale GroupBy-Map patterns with Xarray that are backed by <a href="https://docs.dask.org/en/stable/array.html">Dask arrays</a> is
+an essential part of a lot of typical geospatial workloads. Detrending is a very common
+operation where this pattern is needed.</p>
+<p>In this post, we will explore how and why this caused so many pitfalls for Xarray …</p>
+    </div>
+
+    <div class="meta">
+      <div>
+        <a href="https://phofl.github.io/xarray-groupby-map-dask.html" class="read_more">Read more &#8594;</a>
+      </div>
+
+      <div>
+            <a href="https://phofl.github.io/tag/dask.html" class="tag">dask</a>
+            <a href="https://phofl.github.io/tag/array.html" class="tag">array</a>
+      </div>
+
+    </div>
+
+  </article>
+  <div class="separator"></div>
+  <article>
+    <header>
       <h2><a href="https://phofl.github.io/dask-dataframe-is-fast-now.html">Dask DataFrame is Fast Now</a></h2>
       <time datetime="" title="2024-05-27T00:00:00+02:00" pubdate>Mon 27 May 2024</time>
     </header>
@@ -632,70 +686,6 @@ on a single machine with <a href="https://duckdb.org">DuckDB</a>.</p>
             <a href="https://phofl.github.io/tag/coiled.html" class="tag">coiled</a>
             <a href="https://phofl.github.io/tag/jobs.html" class="tag">jobs</a>
             <a href="https://phofl.github.io/tag/duckdb.html" class="tag">duckdb</a>
-      </div>
-
-    </div>
-
-  </article>
-  <div class="separator"></div>
-  <article>
-    <header>
-      <h2><a href="https://phofl.github.io/high-level-query-optimization-in-dask.html">High Level Query Optimization in Dask</a></h2>
-      <time datetime="" title="2023-08-04T00:00:00+02:00" pubdate>Fri 04 August 2023</time>
-    </header>
-
-    <div class="article_content">
-      <p><img alt="" src="../images/dask-expr/dask-expr-introduction-title.png"></p>
-<h2 id="introduction">Introduction</h2>
-<p>Dask DataFrame doesn't currently optimize your code for you (like Spark or a SQL database would). 
-This means that users waste a lot of computation. Let's look at a common example
-which looks ok at first glance, but is actually pretty inefficient.</p>
-<pre><code class="language-python">import dask.dataframe as dd
-
-df = dd …</code></pre>
-    </div>
-
-    <div class="meta">
-      <div>
-        <a href="https://phofl.github.io/high-level-query-optimization-in-dask.html" class="read_more">Read more &#8594;</a>
-      </div>
-
-      <div>
-            <a href="https://phofl.github.io/tag/dask.html" class="tag">dask</a>
-            <a href="https://phofl.github.io/tag/query-optimizer.html" class="tag">query optimizer</a>
-            <a href="https://phofl.github.io/tag/performance.html" class="tag">performance</a>
-      </div>
-
-    </div>
-
-  </article>
-  <div class="separator"></div>
-  <article>
-    <header>
-      <h2><a href="https://phofl.github.io/coiled-functions-pytorch.html">How to Train a Neural Network on a GPU in the Cloud with coiled functions</a></h2>
-      <time datetime="" title="2023-07-24T00:00:00+02:00" pubdate>Mon 24 July 2023</time>
-    </header>
-
-    <div class="article_content">
-      <p><img alt="" src="../images/coiled_run/coiled-run-pytorch.png"></p>
-<p>We recently pushed out two new and experimental features <a href="https://docs.coiled.io/user_guide/labs/jobs.html?utm_source=phofl&amp;utm_medium=coiled-functions-gpu">coiled jobs</a>
-and <a href="https://docs.coiled.io/user_guide/labs/run.html?utm_source=phofl&amp;utm_medium=coiled-functions-gpu">coiled functions</a>
-which is a deviation of <code>coiled jobs</code>. We are excited about both of them because they:</p>
-<ul>
-<li>Allow users to scale up any given program on any hardware in the cloud.</li>
-<li>Make GPUs easily accessible without going …</li></ul>
-    </div>
-
-    <div class="meta">
-      <div>
-        <a href="https://phofl.github.io/coiled-functions-pytorch.html" class="read_more">Read more &#8594;</a>
-      </div>
-
-      <div>
-            <a href="https://phofl.github.io/tag/coiled.html" class="tag">coiled</a>
-            <a href="https://phofl.github.io/tag/jobs.html" class="tag">jobs</a>
-            <a href="https://phofl.github.io/tag/gpu.html" class="tag">gpu</a>
-            <a href="https://phofl.github.io/tag/machine-learning.html" class="tag">machine learning</a>
       </div>
 
     </div>

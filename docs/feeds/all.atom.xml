@@ -1,5 +1,128 @@
 <?xml version="1.0" encoding="utf-8"?>
-<feed xmlns="http://www.w3.org/2005/Atom"><title>Patrick Hoefler</title><link href="https://phofl.github.io/" rel="alternate"></link><link href="https://phofl.github.io/feeds/all.atom.xml" rel="self"></link><id>https://phofl.github.io/</id><updated>2024-05-27T00:00:00+02:00</updated><entry><title>Dask DataFrame is Fast Now</title><link href="https://phofl.github.io/dask-dataframe-is-fast-now.html" rel="alternate"></link><published>2024-05-27T00:00:00+02:00</published><updated>2024-05-27T00:00:00+02:00</updated><author><name>Patrick Hoefler</name></author><id>tag:phofl.github.io,2024-05-27:/dask-dataframe-is-fast-now.html</id><summary type="html">&lt;p&gt;&lt;img alt="" src="../images/dask_dataframe_fast/dask-improvement.png"&gt;&lt;/p&gt;
+<feed xmlns="http://www.w3.org/2005/Atom"><title>Patrick Hoefler</title><link href="https://phofl.github.io/" rel="alternate"></link><link href="https://phofl.github.io/feeds/all.atom.xml" rel="self"></link><id>https://phofl.github.io/</id><updated>2024-12-17T00:00:00+01:00</updated><entry><title>Faster Xarray Quantile Computations with Dask</title><link href="https://phofl.github.io/xarray-quantile-dask.html" rel="alternate"></link><published>2024-12-17T00:00:00+01:00</published><updated>2024-12-17T00:00:00+01:00</updated><author><name>Patrick Hoefler</name></author><id>tag:phofl.github.io,2024-12-17:/xarray-quantile-dask.html</id><summary type="html">&lt;p&gt;&lt;em&gt;There have been a number of engineering &lt;a href="https://docs.dask.org/en/stable/changelog.html#v2024-11-2"&gt;improvements to Dask Array&lt;/a&gt; like consistent chunksizes in Xarray rolling-constructs and improved efficiency in &lt;code&gt;map_overlap&lt;/code&gt;. Notably, as of Dask version 2024.11.2, calculating quantiles is much faster and more reliable.&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img alt="" src="../images/quantile-fast.gif"&gt;&lt;/p&gt;
+&lt;h2 id="calculating-quantiles-with-xarray"&gt;Calculating Quantiles with Xarray&lt;/h2&gt;
+&lt;p&gt;Calculating quantiles is a common operation for geospatial …&lt;/p&gt;</summary><content type="html">&lt;p&gt;&lt;em&gt;There have been a number of engineering &lt;a href="https://docs.dask.org/en/stable/changelog.html#v2024-11-2"&gt;improvements to Dask Array&lt;/a&gt; like consistent chunksizes in Xarray rolling-constructs and improved efficiency in &lt;code&gt;map_overlap&lt;/code&gt;. Notably, as of Dask version 2024.11.2, calculating quantiles is much faster and more reliable.&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;&lt;img alt="" src="../images/quantile-fast.gif"&gt;&lt;/p&gt;
+&lt;h2 id="calculating-quantiles-with-xarray"&gt;Calculating Quantiles with Xarray&lt;/h2&gt;
+&lt;p&gt;Calculating quantiles is a common operation for geospatial data. Quantiles show how a dataset is distributed over time, allowing you to identify trends, anomalies, and variation within specific grid cells or regions. These calculations are typically performed either for distinct groups within the dataset or across the dataset as a whole.&lt;/p&gt;
+&lt;h2 id="the-problem-npquantile-can-be-slow"&gt;The Problem: &lt;code&gt;np.quantile&lt;/code&gt; Can Be Slow&lt;/h2&gt;
+&lt;p&gt;The data we often encounter typically has a relatively short time axis, consisting of only a few hundred to a few thousand values, while the latitude and longitude dimensions are extensive.&lt;/p&gt;
+&lt;p&gt;Previously, the quantile calculation for every coordinate was done on a pretty small array with the NumPy implementation &lt;code&gt;np.quantile&lt;/code&gt; or &lt;code&gt;np.nanquantile&lt;/code&gt;:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;import numpy as np
+
+np.quantile(np.random.randn(500), q=0.5)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;Dask lacked an efficient efficient multidimensional implementation for calculating quantiles, which meant calling the one-dimensional NumPy implementation millions of times in Python. This is very slow and also blocks the GIL (looking forward to a free-threaded Python world 😅). This caused large slowdowns on workers with more than one thread and could lead to runtimes over 200s per chunk.&lt;/p&gt;
+&lt;p&gt;Running the following computation previously took over 3 minutes to complete:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;import xarray as xr
+import dask.array as da
+
+arr = da.random.random((50, 3_000, 3_000), chunks=(-1, &amp;quot;auto&amp;quot;, &amp;quot;auto&amp;quot;))
+
+darr = xr.DataArray(
+    arr, dims=[&amp;quot;time&amp;quot;, &amp;quot;x&amp;quot;, &amp;quot;y&amp;quot;]
+)
+
+darr.quantile(dim=&amp;quot;time&amp;quot;, q=0.75).compute()
+&lt;/code&gt;&lt;/pre&gt;
+&lt;script src="https://fast.wistia.com/player.js" async&gt;&lt;/script&gt;
+&lt;script src="https://fast.wistia.com/embed/9erk2qeo5l.js" async type="module"&gt;&lt;/script&gt;
+&lt;style&gt;wistia-player[media-id='9erk2qeo5l']:not(:defined) { background: center / contain no-repeat url('https://fast.wistia.com/embed/medias/9erk2qeo5l/swatch'); display: block; filter: blur(5px); padding-top:72.08%; }&lt;/style&gt;
+&lt;p&gt;&lt;wistia-player media-id="9erk2qeo5l" seo="false"&gt;&lt;/wistia-player&gt;&lt;/p&gt;
+&lt;p&gt;&lt;em&gt;Computing quantiles used to be painfully slow. The computation takes ~3 minutes to complete.&lt;/em&gt;&lt;/p&gt;
+&lt;h2 id="the-solution-a-new-daskarrayquantile"&gt;The Solution: A New &lt;code&gt;dask.array.quantile&lt;/code&gt;&lt;/h2&gt;
+&lt;p&gt;As of &lt;code&gt;dask=2024.11.2&lt;/code&gt;, we've added a high-level quantile API to Dask that uses top level NumPy functions to extract the quantile for each time slice. The operations are more expensive than an optimal quantile implementation, but the vectorized, multidimensional nature of each call makes it a lot faster in aggregate. And we don't block the GIL anymore, so you can run with proper parallelism on your Dask workers.&lt;/p&gt;
+&lt;script src="https://fast.wistia.com/player.js" async&gt;&lt;/script&gt;
+&lt;script src="https://fast.wistia.com/embed/lq8sj9yaf1.js" async type="module"&gt;&lt;/script&gt;
+&lt;style&gt;wistia-player[media-id='lq8sj9yaf1']:not(:defined) { background: center / contain no-repeat url('https://fast.wistia.com/embed/medias/lq8sj9yaf1/swatch'); display: block; filter: blur(5px); padding-top:72.08%; }&lt;/style&gt;
+&lt;p&gt;&lt;wistia-player media-id="lq8sj9yaf1" seo="false"&gt;&lt;/wistia-player&gt;&lt;/p&gt;
+&lt;p&gt;&lt;em&gt;Using the new implementation, this same microbenchmark takes ~9 seconds, a 20x speedup.&lt;/em&gt;&lt;/p&gt;
+&lt;p&gt;The new quantile implementation reduces runtime to ~1s per chunk, independent of the number of threads. This means we're able to calculate quantiles hundreds of times faster than before! You can expect the speedups to scale with the size of your quantile axis.&lt;/p&gt;</content><category term="posts"></category><category term="dask"></category><category term="array"></category></entry><entry><title>Improving GroupBy.map with Dask and Xarray</title><link href="https://phofl.github.io/xarray-groupby-map-dask.html" rel="alternate"></link><published>2024-11-21T00:00:00+01:00</published><updated>2024-11-21T00:00:00+01:00</updated><author><name>Patrick Hoefler</name></author><id>tag:phofl.github.io,2024-11-21:/xarray-groupby-map-dask.html</id><summary type="html">&lt;p&gt;Running large-scale GroupBy-Map patterns with Xarray that are backed by &lt;a href="https://docs.dask.org/en/stable/array.html"&gt;Dask arrays&lt;/a&gt; is
+an essential part of a lot of typical geospatial workloads. Detrending is a very common
+operation where this pattern is needed.&lt;/p&gt;
+&lt;p&gt;In this post, we will explore how and why this caused so many pitfalls for Xarray …&lt;/p&gt;</summary><content type="html">&lt;p&gt;Running large-scale GroupBy-Map patterns with Xarray that are backed by &lt;a href="https://docs.dask.org/en/stable/array.html"&gt;Dask arrays&lt;/a&gt; is
+an essential part of a lot of typical geospatial workloads. Detrending is a very common
+operation where this pattern is needed.&lt;/p&gt;
+&lt;p&gt;In this post, we will explore how and why this caused so many pitfalls for Xarray users in
+the past and how we improved performance and scalability with a few changes to how Dask
+subselects data.&lt;/p&gt;
+&lt;h2 id="what-is-groupbymap"&gt;What is GroupBy.map?&lt;/h2&gt;
+&lt;p&gt;&lt;a href="https://docs.xarray.dev/en/stable/generated/xarray.core.groupby.DatasetGroupBy.map.html"&gt;&lt;code&gt;GroupBy.map&lt;/code&gt;&lt;/a&gt; lets you apply a User Defined Function (UDF)
+that accepts and returns Xarray objects. The UDF will receive an Xarray object (either a Dataset or a DataArray) containing Dask arrays corresponding to one single group.
+&lt;a href="https://docs.xarray.dev/en/stable/generated/xarray.core.groupby.DatasetGroupBy.reduce.html"&gt;&lt;code&gt;Groupby.reduce&lt;/code&gt;&lt;/a&gt; is quite similar
+in that it applies a UDF, but in this case the UDF will receive the underlying Dask arrays, &lt;em&gt;not&lt;/em&gt; Xarray objects.&lt;/p&gt;
+&lt;h2 id="the-application"&gt;The Application&lt;/h2&gt;
+&lt;p&gt;Consider a typical workflow where you want to apply a detrending step. You may want to smooth out
+the data by removing the trends over time. This is a common operation in climate science
+and normally looks roughly like this:&lt;/p&gt;
+&lt;pre&gt;&lt;code class="language-python"&gt;def detrending_step(arr: DataArray) -&amp;gt; DataArray:
+    # important: the rolling operation is applied within a group
+    return arr - arr.rolling(time=30, min_periods=1).mean()
+
+data.groupby(&amp;quot;time.dayofyear&amp;quot;).map(detrending_step)
+&lt;/code&gt;&lt;/pre&gt;
+&lt;p&gt;We are grouping by the day of the year and then are calculating the rolling average over
+30-year windows for a particular day.&lt;/p&gt;
+&lt;p&gt;Our example will run on a 1 TiB array, 64 years worth of data and the following structure:&lt;/p&gt;
+&lt;p&gt;&lt;img alt="Python repr output of 1 TiB Dask array with shape (1801, 3600, 233376) split into 5460, 250 MiB chunks of (300, 300, 365)" src="../images/dask-detrending/input-array.png"&gt;&lt;/p&gt;
+&lt;p&gt;The array isn't overly huge and the chunks are reasonably sized.&lt;/p&gt;
+&lt;h2 id="the-problem"&gt;The Problem&lt;/h2&gt;
+&lt;p&gt;The general application seems straightforward. Group by the day of the year and apply a UDF
+to every group. There are a few pitfalls in this application that can make the result of
+this operation unusable. Our array is sorted by time, which means that we have to pick
+entries from many different areas in the array to create a single group (corresponding to a single day of the year).
+Picking the same day of every year is basically a slicing operation with a step size of 365.&lt;/p&gt;
+&lt;p&gt;&lt;img alt="Schematic showing an array sorted by time, where data is selected from many different areas in the array to create a single group (corresponding to a specific day of the year)." src="../images/dask-detrending/indexing-data-selection.png" title="Data Selection Pattern"&gt;&lt;/p&gt;
+&lt;p&gt;Our example has a year worth of data in a single chunk along the time axis. The general problem
+exists for any workload where you have to access random entries of data. This
+particular access pattern means that we have to pick one value per chunk, which is pretty
+inefficient. The right side shows the individual groups that we are operating on.&lt;/p&gt;
+&lt;p&gt;One of the main issues with this pattern is that Dask will create a single output chunk per time
+entry, e.g. each group will consist of as many chunks as we have year.&lt;/p&gt;
+&lt;p&gt;This results in a huge increase in the number of chunks:&lt;/p&gt;
+&lt;p&gt;&lt;img alt="Python repr output of a 1 TiB Dask array with nearly 2 million, 700 kiB chunks." src="../images/dask-detrending/output-array-old.png"&gt;&lt;/p&gt;
+&lt;p&gt;This simple operation increases the number of chunks from 5000 to close to 2 million. Each
+chunk only has a few hundred kilobytes of data. &lt;strong&gt;This is pretty bad!&lt;/strong&gt;&lt;/p&gt;
+&lt;p&gt;Dask computations generally scale along the number of chunks you have. Increasing the chunks by such
+a large factor is catastrophic. Each follow-up operation, as simple as &lt;code&gt;a-b&lt;/code&gt; will create 2 million
+additional tasks.&lt;/p&gt;
+&lt;p&gt;The only workaround for users was to rechunk to something more sensible afterward, but it
+still keeps the incredibly expensive indexing operation in the graph.&lt;/p&gt;
+&lt;p&gt;Note this is the underlying problem that is &lt;a href="https://xarray.dev/blog/flox"&gt;solved by flox&lt;/a&gt; for aggregations like &lt;code&gt;.mean()&lt;/code&gt;
+using parallel-native algorithms to avoid the expense of indexing out each group.&lt;/p&gt;
+&lt;h2 id="improvements-to-the-data-selection-algorithm"&gt;Improvements to the Data Selection algorithm&lt;/h2&gt;
+&lt;p&gt;The method of how Dask selected the data was objectively pretty bad.
+A rewrite of the underlying algorithm enabled us to achieve a much more robust result. The new
+algorithm is a lot smarter about how to pick values from each individual chunk, but most importantly,
+it will try to preserve the input chunksize as closely as possible.&lt;/p&gt;
+&lt;p&gt;For our initial example, it will put every group into a single chunk. This means that we will
+end up with the number of chunks along the time axis being equal to the number of groups, i.e. 365.&lt;/p&gt;
+&lt;p&gt;&lt;img alt="Python repr output of a 1 TiB Dask array with 31164, 43 MiB chunks" src="../images/dask-detrending/output-array-new.png"&gt;&lt;/p&gt;
+&lt;p&gt;The algorithm reduces the number of chunks from 2 million to roughly 30 thousand, which is a huge improvement
+and a scale that Dask can easily handle. The graph is now much smaller, and the follow-up operations
+will run a lot faster as well.&lt;/p&gt;
+&lt;p&gt;This improvement will help every operation that we listed above and make the scale a lot more
+reliably than before. The algorithm is used very widely across Dask and Xarray and thus, influences
+many methods.&lt;/p&gt;
+&lt;h2 id="whats-next"&gt;What's next?&lt;/h2&gt;
+&lt;p&gt;Xarray selects one group at a time for &lt;code&gt;groupby(...).map(...)&lt;/code&gt;, i.e. this requires one operation
+per group. This will hurt scalability if the dataset has a very large number of groups, because
+the computation will create a very expensive graph. There is currently an effort to implement alternative
+APIs that are shuffle-based to circumvent that problem. A current PR is available &lt;a href="https://github.com/pydata/xarray/pull/9320"&gt;here&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;The fragmentation of the output chunks by indexing is something that will hurt every workflow that is selecting data in a random
+pattern. This also includes:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;&lt;code&gt;.sel&lt;/code&gt; if you aren't using slices explicitly&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;.isel&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;.sortby&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;groupby(...).quantile()&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;and many more.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;We expect all of these workloads to be substantially improved now.&lt;/p&gt;
+&lt;p&gt;Additionally, &lt;a href="https://docs.dask.org/en/stable/changelog.html#v2024-11-1"&gt;Dask improved a lot of things&lt;/a&gt; related to either increasing chunksizes or fragmentation
+of chunks over the cycle of a workload with more improvements to come. This will help a lot of
+users to get better and more reliable performance.&lt;/p&gt;</content><category term="posts"></category><category term="dask"></category><category term="array"></category></entry><entry><title>Dask DataFrame is Fast Now</title><link href="https://phofl.github.io/dask-dataframe-is-fast-now.html" rel="alternate"></link><published>2024-05-27T00:00:00+02:00</published><updated>2024-05-27T00:00:00+02:00</updated><author><name>Patrick Hoefler</name></author><id>tag:phofl.github.io,2024-05-27:/dask-dataframe-is-fast-now.html</id><summary type="html">&lt;p&gt;&lt;img alt="" src="../images/dask_dataframe_fast/dask-improvement.png"&gt;&lt;/p&gt;
 &lt;h2 id="intro"&gt;Intro&lt;/h2&gt;
 &lt;p&gt;Dask DataFrame scales out pandas DataFrames to operate at the 100GB-100TB scale.&lt;/p&gt;
 &lt;p&gt;Historically, &lt;a href="https://www.dask.org/"&gt;Dask&lt;/a&gt; was pretty slow compared to other tools in this space (like Spark). Due to a number of improvements focused on performance,
